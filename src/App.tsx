@@ -161,10 +161,29 @@ const isValidContact = (v: string) =>
   /^[0-9+\-\s]{8,}$/.test(v.trim()) || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim())
 
 const navLinks = [
-  { label: 'Түүх', href: '#story' },
   { label: 'Бүтээгдэхүүн', href: '#products' },
-  { label: 'Тусламж', href: '#faq' },
-  { label: 'Дэмжлэг', href: '#footer' },
+  { label: 'Бидний тухай', href: '#about' },
+  { label: 'Зөвлөгөө', href: '#tips' },
+  { label: 'Холбоо барих', href: '#contact' },
+]
+
+const tips = [
+  {
+    title: 'Өдөрт 2 удаа',
+    desc: 'Өглөө сэрээд болон унтахын өмнө 2 минутын турш угаана.',
+  },
+  {
+    title: '45 градусын өнцгөөр',
+    desc: 'Сойзоо буйлны шугам руу 45° налуулж, зөөлөн дугуй хөдөлгөөнөөр угаана.',
+  },
+  {
+    title: 'Хэлээ мартуузай',
+    desc: 'Хэлний гадаргууг зөөлөн цэвэрлэснээр амны үнэр арилна.',
+  },
+  {
+    title: '3 сар тутамд солино',
+    desc: 'Хялгас нь салбайсан сойз үр дүнгүй — улирал бүр шинэчлээрэй.',
+  },
 ]
 
 const features = [
@@ -1292,9 +1311,9 @@ function App() {
       </section>
 
       {/* ---------- Design story: AM/PM poster infographic ---------- */}
-      <section id="story" className="py-10 sm:py-16 px-6 sm:px-12 md:px-20 lg:px-28">
+      <section id="about" className="py-10 sm:py-16 px-6 sm:px-12 md:px-20 lg:px-28">
         <Reveal className="max-w-xl mb-10">
-          <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Дизайны түүх</p>
+          <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Бидний тухай</p>
           <h2 className="text-[1.5rem] sm:text-[2rem] leading-[1.15] font-medium text-gray-900 tracking-tight">
             Алхам бүрдээ нарийн бодолцсон.
           </h2>
@@ -1439,7 +1458,7 @@ function App() {
       </section>
 
       {/* ---------- Reviews ---------- */}
-      <section id="faq" className="py-20 sm:py-28 px-6 sm:px-12 md:px-20 lg:px-28">
+      <section id="reviews" className="py-20 sm:py-28 px-6 sm:px-12 md:px-20 lg:px-28">
         <Reveal className="max-w-xl mb-12">
           <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Сэтгэгдэл</p>
           <h2 className="text-[1.5rem] sm:text-[2rem] leading-[1.15] font-medium text-gray-900 tracking-tight">
@@ -1463,8 +1482,31 @@ function App() {
         </div>
       </section>
 
+      {/* ---------- Tips ---------- */}
+      <section id="tips" className="py-20 sm:py-28 px-6 sm:px-12 md:px-20 lg:px-28">
+        <Reveal className="max-w-xl mb-12">
+          <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Зөвлөгөө</p>
+          <h2 className="text-[1.5rem] sm:text-[2rem] leading-[1.15] font-medium text-gray-900 tracking-tight">
+            Эрүүл инээмсэглэлийн энгийн дүрмүүд.
+          </h2>
+        </Reveal>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {tips.map((t, i) => (
+            <Reveal key={t.title} delay={i * 100}>
+              <div className="rounded-2xl p-6 h-full" style={{ backgroundColor: '#EDEDED' }}>
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white text-[13px] font-bold mb-4">
+                  {i + 1}
+                </span>
+                <h3 className="text-[14px] font-medium text-gray-900 mb-2">{t.title}</h3>
+                <p className="text-[12.5px] leading-relaxed text-gray-500">{t.desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
       {/* ---------- Footer ---------- */}
-      <footer id="footer" className="py-14 px-6 sm:px-12 md:px-20 lg:px-28">
+      <footer id="contact" className="py-14 px-6 sm:px-12 md:px-20 lg:px-28">
         <Reveal>
           <div
             className="rounded-3xl px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-6"
