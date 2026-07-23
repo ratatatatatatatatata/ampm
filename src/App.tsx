@@ -1420,10 +1420,17 @@ function App() {
 
       {/* ---------- Fullscreen video hero ---------- */}
       <header className="relative min-h-screen overflow-hidden bg-black">
+        {/* Хэвтээ бичлэг: өргөн дэлгэцэд шууд дүүргэнэ, босоо утсанд бүдэг
+            дэвсгэр дээр бүтнээр нь голлуулна */}
         {wide ? (
+          <AutoVideo
+            className="absolute inset-0 w-full h-full object-cover"
+            src="/video/ampm-hero.mp4"
+          />
+        ) : (
           <>
             <AutoVideo
-              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 brightness-[0.45]"
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 brightness-[0.55]"
               src="/video/ampm-hero.mp4"
               ariaHidden
             />
@@ -1431,20 +1438,13 @@ function App() {
               className="absolute inset-0 w-full h-full object-contain"
               src="/video/ampm-hero.mp4"
             />
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: 'radial-gradient(ellipse 60% 70% at 50% 45%, transparent 45%, rgba(0,0,0,0.5) 100%)',
-              }}
-              aria-hidden
-            />
           </>
-        ) : (
-          <AutoVideo
-            className="absolute inset-0 w-full h-full object-cover"
-            src="/video/ampm-hero.mp4"
-          />
         )}
+        {/* текстийн уншигдацад зориулсан доод градиент */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/60 via-black/25 to-transparent pointer-events-none"
+          aria-hidden
+        />
         <div className="relative z-10 flex flex-col min-h-screen">
           <div className="flex-1 flex items-end pb-10 sm:pb-16 lg:pb-20 px-6 sm:px-12 md:px-20 lg:px-28">
             <div className="max-w-xs">
