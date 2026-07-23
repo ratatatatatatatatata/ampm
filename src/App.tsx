@@ -1506,6 +1506,7 @@ function useWideViewport() {
 function App() {
   const [cart, setCart] = useState<CartItem[]>(() => loadJson<CartItem[]>(CART_KEY, []))
   const [cartOpen, setCartOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [viewProduct, setViewProduct] = useState<Product | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(!!supabase)
@@ -1581,14 +1582,14 @@ function App() {
           <Logo />
         </div>
         <div
-          className="flex items-center gap-4 sm:gap-10 rounded-xl px-4 sm:px-8 py-2.5 sm:py-3 shadow-sm"
+          className="hidden sm:flex items-center gap-10 rounded-xl px-8 py-3 shadow-sm"
           style={{ backgroundColor: '#EDEDED' }}
         >
           {navLinks.map((link) => (
             <a
               key={link.label}
               href={link.href}
-              className="text-[12px] sm:text-[14px] font-medium text-gray-700 hover:text-gray-900 transition-colors duration-200"
+              className="text-[14px] font-medium text-gray-700 hover:text-gray-900 transition-colors duration-200"
             >
               {link.label}
             </a>
@@ -1607,7 +1608,62 @@ function App() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="flex sm:hidden items-center justify-center rounded-full w-10 h-10 shrink-0 shadow-sm"
+          style={{ backgroundColor: '#EDEDED' }}
+          aria-label="Цэс"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
       </nav>
+
+      {/* ---------- Mobile fullscreen menu ---------- */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-[100] flex flex-col bg-[#f0f0ee] sm:hidden">
+          <div className="flex items-center justify-between px-5 py-5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center rounded-full w-10 h-10" style={{ backgroundColor: '#EDEDED' }}>
+                <Logo />
+              </div>
+              <span className="text-[14px] font-semibold text-gray-900">AM/PM</span>
+            </div>
+            <button
+              onClick={() => setMenuOpen(false)}
+              aria-label="Хаах"
+              className="flex items-center justify-center rounded-full w-10 h-10"
+              style={{ backgroundColor: '#EDEDED' }}
+            >
+              <X size={18} className="text-gray-700" />
+            </button>
+          </div>
+          <nav className="flex flex-1 flex-col justify-center gap-1 px-8">
+            {navLinks.map((link, i) => (
+              <a
+                key={link.label}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between py-4 border-b border-gray-200 text-[19px] font-medium text-gray-900"
+              >
+                {link.label}
+                <span className="text-gray-300 text-[15px]">0{i + 1}</span>
+              </a>
+            ))}
+            <button
+              onClick={() => {
+                setMenuOpen(false)
+                setCartOpen(true)
+              }}
+              className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-blue-500 text-white text-[14px] font-semibold py-3.5"
+            >
+              <ShoppingBag size={16} /> Сагс харах {cartCount > 0 && `(${cartCount})`}
+            </button>
+          </nav>
+          <p className="pb-8 text-center text-[11.5px] text-gray-400">Өглөөний цэнгэг. Оройн арчилгаа.</p>
+        </div>
+      )}
 
       {/* ---------- Fullscreen video hero ---------- */}
       <header className="relative min-h-screen overflow-hidden bg-black">
@@ -1637,19 +1693,19 @@ function App() {
           aria-hidden
         />
         <div className="relative z-10 flex flex-col min-h-screen">
-          <div className="flex-1 flex items-end pb-10 sm:pb-16 lg:pb-20 px-6 sm:px-12 md:px-20 lg:px-28">
-            <div className="max-w-xs">
+          <div className="flex-1 flex items-end justify-center sm:justify-start pb-12 sm:pb-16 lg:pb-20 px-6 sm:px-12 md:px-20 lg:px-28">
+            <div className="max-w-xs text-center sm:text-left">
               <a
                 href="#products"
-                className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-500 hover:text-blue-600 transition-colors mb-3 group"
+                className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-400 hover:text-blue-300 transition-colors mb-3 group"
               >
                 AM/PM — шинэ цуглуулга{' '}
                 <span className="inline-block transition-transform duration-200 group-hover:translate-x-0.5">→</span>
               </a>
-              <h1 className="text-[1.5rem] sm:text-[1.75rem] leading-[1.15] font-medium text-white tracking-tight mb-3">
+              <h1 className="text-[1.4rem] sm:text-[1.75rem] leading-[1.2] font-medium text-white tracking-tight mb-3">
                 Инээмсэглэлээ хайрладаг хүмүүст зориулсан энгийн, ухаалаг арчилгаа.
               </h1>
-              <p className="text-[13px] text-gray-400 font-normal">Өдөр бүрээ цэнгэг эхлүүл. Доош гүйлгэж танилцана уу.</p>
+              <p className="text-[13px] text-gray-300 font-normal">Өдөр бүрээ цэнгэг эхлүүл. Доош гүйлгэж танилцана уу.</p>
             </div>
           </div>
           <div className="pb-6 flex justify-center">
