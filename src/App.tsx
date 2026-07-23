@@ -591,6 +591,18 @@ function AdminPanel({
 
 /* ---------------- Main page ---------------- */
 
+/** True on landscape-ish viewports where the portrait video would crop badly. */
+function useWideViewport() {
+  const [wide, setWide] = useState(() => window.matchMedia('(min-aspect-ratio: 1/1)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-aspect-ratio: 1/1)')
+    const onChange = () => setWide(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return wide
+}
+
 function App() {
   const [cart, setCart] = useState(0)
   const [custom, setCustom] = useState<Product[]>([])
@@ -598,6 +610,7 @@ function App() {
   const [loadError, setLoadError] = useState('')
   const [route, setRoute] = useState(window.location.hash)
   const [session, setSession] = useState<Session | null>(null)
+  const wide = useWideViewport()
 
   useEffect(() => {
     const onHash = () => setRoute(window.location.hash)
@@ -682,15 +695,48 @@ function App() {
       </nav>
 
       {/* ---------- Fullscreen video hero ---------- */}
-      <header className="relative min-h-screen overflow-hidden">
-        <video
-          className="absolute inset-0 w-full h-full object-cover"
-          src="/video/ampm-hero.mp4"
-          autoPlay
-          muted
-          loop
-          playsInline
-        />
+      <header className="relative min-h-screen overflow-hidden bg-black">
+        {wide ? (
+          <>
+            {/* landscape: blurred fill behind + full brush sharp in the center */}
+            <video
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 brightness-[0.45]"
+              src="/video/ampm-hero.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              aria-hidden
+            />
+            <video
+              className="absolute inset-0 w-full h-full object-contain"
+              src="/video/ampm-hero.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+            />
+            {/* vignette: melts the sharp/blurred boundary together */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(ellipse 60% 70% at 50% 45%, transparent 45%, rgba(0,0,0,0.5) 100%)',
+              }}
+              aria-hidden
+            />
+          </>
+        ) : (
+          /* portrait: the 9:16 video fills the screen natively */
+          <video
+            className="absolute inset-0 w-full h-full object-cover"
+            src="/video/ampm-hero.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+          />
+        )}
         <div className="relative z-10 flex flex-col min-h-screen">
           <div className="flex-1 flex items-end pb-10 sm:pb-16 lg:pb-20 px-6 sm:px-12 md:px-20 lg:px-28">
             <div className="max-w-xs">
