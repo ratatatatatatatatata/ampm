@@ -362,47 +362,74 @@ const ADJ_H = 240
  * drag to reposition, slider to zoom. The composed crop is rendered to an
  * 800x600 canvas and saved, so the shop shows exactly what was framed here.
  */
+type FitMode = 'cover' | 'contain'
+
 function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: string) => void }) {
   const [img, setImg] = useState<HTMLImageElement | null>(null)
+  const [mode, setMode] = useState<FitMode>('cover')
   const [zoom, setZoom] = useState(1)
   const [off, setOff] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
 
-  const coverScale = img ? Math.max(ADJ_W / img.naturalWidth, ADJ_H / img.naturalHeight) : 1
-  const s = coverScale * zoom
+  const baseScale = useCallback(
+    (m: FitMode) => {
+      if (!img) return 1
+      return m === 'cover'
+        ? Math.max(ADJ_W / img.naturalWidth, ADJ_H / img.naturalHeight)
+        : Math.min(ADJ_W / img.naturalWidth, ADJ_H / img.naturalHeight)
+    },
+    [img],
+  )
+  const s = baseScale(mode) * zoom
 
   const clampOff = useCallback(
-    (x: number, y: number, zoomV = zoom) => {
+    (x: number, y: number, zoomV = zoom, modeV = mode) => {
       if (!img) return { x: 0, y: 0 }
-      const sc = coverScale * zoomV
-      const maxX = Math.max(0, (img.naturalWidth * sc - ADJ_W) / 2)
-      const maxY = Math.max(0, (img.naturalHeight * sc - ADJ_H) / 2)
+      const sc = baseScale(modeV) * zoomV
+      // cover: чирэлт нь кадрын гадна гарахгүй; contain: зураг кадр дотроо хөдөлнө
+      const maxX = Math.abs(img.naturalWidth * sc - ADJ_W) / 2
+      const maxY = Math.abs(img.naturalHeight * sc - ADJ_H) / 2
       return { x: Math.min(maxX, Math.max(-maxX, x)), y: Math.min(maxY, Math.max(-maxY, y)) }
     },
-    [img, coverScale, zoom],
+    [img, baseScale, zoom, mode],
   )
 
   const emit = useCallback(
-    (zoomV: number, offV: { x: number; y: number }) => {
+    (zoomV: number, offV: { x: number; y: number }, modeV: FitMode = mode) => {
       if (!img) return
-      const sc = coverScale * zoomV
+      const sc = baseScale(modeV) * zoomV
       const canvas = document.createElement('canvas')
       canvas.width = 800
       canvas.height = 600
       const ctx = canvas.getContext('2d')
       if (!ctx) return
+      // PNG-ийн тунгалаг дэвсгэр хар болохоос сэргийлж цагаанаар дүүргэнэ
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, 800, 600)
+      const scale800 = 800 / ADJ_W
       const left = ADJ_W / 2 - (img.naturalWidth * sc) / 2 + offV.x
       const top = ADJ_H / 2 - (img.naturalHeight * sc) / 2 + offV.y
-      ctx.drawImage(img, -left / sc, -top / sc, ADJ_W / sc, ADJ_H / sc, 0, 0, 800, 600)
+      ctx.drawImage(
+        img,
+        0,
+        0,
+        img.naturalWidth,
+        img.naturalHeight,
+        left * scale800,
+        top * scale800,
+        img.naturalWidth * sc * scale800,
+        img.naturalHeight * sc * scale800,
+      )
       onAdjusted(canvas.toDataURL('image/jpeg', 0.85))
     },
-    [img, coverScale, onAdjusted],
+    [img, baseScale, onAdjusted, mode],
   )
 
   useEffect(() => {
     const i = new Image()
     i.onload = () => {
       setImg(i)
+      setMode('cover')
       setZoom(1)
       setOff({ x: 0, y: 0 })
     }
@@ -411,8 +438,16 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
 
   // initial composition once the image is ready
   useEffect(() => {
-    if (img) emit(1, { x: 0, y: 0 })
-  }, [img, emit])
+    if (img) emit(1, { x: 0, y: 0 }, 'cover')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [img])
+
+  const switchMode = (m: FitMode) => {
+    setMode(m)
+    setZoom(1)
+    setOff({ x: 0, y: 0 })
+    emit(1, { x: 0, y: 0 }, m)
+  }
 
   const onPointerDown = (e: React.PointerEvent) => {
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
@@ -443,8 +478,32 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
       <p className="text-[12px] font-medium text-gray-700 mb-2">
         Картан дээр хэрхэн харагдахыг тохируулна уу — зургийг чирж байрлуулж, доорх гулсагчаар томруулна
       </p>
+      <div className="flex gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => switchMode('contain')}
+          className={`text-[11.5px] font-medium rounded-full px-4 py-1.5 border transition-colors ${
+            mode === 'contain'
+              ? 'bg-blue-500 text-white border-blue-500'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+          }`}
+        >
+          Бүтнээр багтаах
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode('cover')}
+          className={`text-[11.5px] font-medium rounded-full px-4 py-1.5 border transition-colors ${
+            mode === 'cover'
+              ? 'bg-blue-500 text-white border-blue-500'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+          }`}
+        >
+          Тайрч дүүргэх
+        </button>
+      </div>
       <div
-        className="relative overflow-hidden rounded-xl bg-gray-200 cursor-grab active:cursor-grabbing touch-none select-none"
+        className="relative overflow-hidden rounded-xl bg-white border border-gray-200 cursor-grab active:cursor-grabbing touch-none select-none"
         style={{ width: ADJ_W, height: ADJ_H }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -484,12 +543,66 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
 
 /* ---------------- Address map picker ---------------- */
 
+type GeoSuggestion = { display_name: string; lat: string; lon: string }
+
 function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: number) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.CircleMarker | null>(null)
   const onPickRef = useRef(onPick)
   onPickRef.current = onPick
+
+  const [query, setQuery] = useState('')
+  const [sugs, setSugs] = useState<GeoSuggestion[]>([])
+  const [searching, setSearching] = useState(false)
+  const timerRef = useRef<number | undefined>(undefined)
+
+  const placeMarker = (lat: number, lng: number) => {
+    const map = mapRef.current
+    if (!map) return
+    if (markerRef.current) markerRef.current.setLatLng([lat, lng])
+    else
+      markerRef.current = L.circleMarker([lat, lng], {
+        radius: 9,
+        color: '#3b82f6',
+        weight: 3,
+        fillColor: '#3b82f6',
+        fillOpacity: 0.5,
+      }).addTo(map)
+  }
+
+  // Хайлтын autocomplete — Google Maps шиг бичих явцад санал гарна
+  const onQuery = (q: string) => {
+    setQuery(q)
+    window.clearTimeout(timerRef.current)
+    if (q.trim().length < 3) {
+      setSugs([])
+      return
+    }
+    timerRef.current = window.setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=mn&accept-language=mn&limit=5&q=${encodeURIComponent(q)}`,
+        )
+        const j = (await res.json()) as GeoSuggestion[]
+        setSugs(Array.isArray(j) ? j : [])
+      } catch {
+        setSugs([])
+      }
+      setSearching(false)
+    }, 450)
+  }
+
+  const pickSuggestion = (s: GeoSuggestion) => {
+    const lat = Number(s.lat)
+    const lng = Number(s.lon)
+    setSugs([])
+    setQuery(s.display_name)
+    mapRef.current?.setView([lat, lng], 16)
+    placeMarker(lat, lng)
+    onPickRef.current(s.display_name, lat, lng)
+  }
 
   useEffect(() => {
     if (!wrapRef.current || mapRef.current) return
@@ -498,19 +611,11 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
       attribution: '© OpenStreetMap',
       maxZoom: 19,
     }).addTo(map)
+    mapRef.current = map
 
     map.on('click', async (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng
-      if (markerRef.current) markerRef.current.setLatLng(e.latlng)
-      else
-        markerRef.current = L.circleMarker(e.latlng, {
-          radius: 9,
-          color: '#3b82f6',
-          weight: 3,
-          fillColor: '#3b82f6',
-          fillOpacity: 0.5,
-        }).addTo(map)
-
+      placeMarker(lat, lng)
       let addr = `Байршил: ${lat.toFixed(5)}, ${lng.toFixed(5)}`
       try {
         const res = await fetch(
@@ -524,7 +629,6 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
       onPickRef.current(addr, lat, lng)
     })
 
-    mapRef.current = map
     // The drawer animates in — recalc size once it settles.
     setTimeout(() => map.invalidateSize(), 350)
     return () => {
@@ -536,9 +640,39 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
 
   return (
     <div>
+      <div className="relative mb-2 z-10">
+        <label className="text-[12.5px] font-medium text-gray-700 flex items-center gap-1.5 mb-1.5">
+          <MapPin size={13} /> Хаяг хайх
+        </label>
+        <input
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder="Ж: Хан-Уул, Zaisan Hill…"
+          className="w-full rounded-xl bg-white px-4 py-2.5 text-[13px] text-gray-900 outline-none border border-gray-200 focus:border-blue-400 transition-colors"
+        />
+        {searching && (
+          <Loader2 size={14} className="absolute right-3.5 top-[38px] animate-spin text-gray-400" />
+        )}
+        {sugs.length > 0 && (
+          <ul className="absolute inset-x-0 top-full mt-1 rounded-xl bg-white border border-gray-200 shadow-lg overflow-hidden z-20">
+            {sugs.map((s, i) => (
+              <li key={i}>
+                <button
+                  type="button"
+                  onClick={() => pickSuggestion(s)}
+                  className="w-full text-left px-4 py-2.5 text-[12.5px] text-gray-700 hover:bg-blue-50 flex items-start gap-2"
+                >
+                  <MapPin size={13} className="mt-0.5 shrink-0 text-gray-400" />
+                  <span className="line-clamp-2">{s.display_name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <div ref={wrapRef} className="h-52 rounded-xl overflow-hidden relative z-0" />
       <p className="mt-1.5 text-[11px] text-gray-400 flex items-center gap-1">
-        <MapPin size={11} /> Газрын зурган дээр дарж хаягаа сонгоно уу
+        <MapPin size={11} /> Хайх эсвэл газрын зурган дээр дарж хаягаа сонгоно уу
       </p>
     </div>
   )
@@ -885,8 +1019,34 @@ function AdminPanel({
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   const onAdjusted = useCallback((out: string) => setImage(out), [])
+
+  const resetForm = () => {
+    setEditingId(null)
+    setName('')
+    setDesc('')
+    setPrice('')
+    setBadge('')
+    setImage(undefined)
+    setImageRaw(undefined)
+    setError('')
+  }
+
+  const startEdit = (p: Product) => {
+    setEditingId(p.id)
+    setName(p.name)
+    setDesc(p.desc)
+    setPrice(String(p.price))
+    setBadge(p.badge ?? '')
+    setImage(p.image) // шинэ зураг сонгохгүй бол хуучин зураг хэвээр үлдэнэ
+    setImageRaw(undefined)
+    setError('')
+    setTab('products')
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const usingDb = !!supabase
 
@@ -965,14 +1125,18 @@ function AdminPanel({
     setError('')
     setBusy(true)
 
+    const fields = {
+      name: name.trim(),
+      descr: desc.trim() || 'AM/PM цуглуулгын бүтээгдэхүүн.',
+      price: p,
+      badge: badge.trim() || null,
+      image: image || null,
+    }
+
     if (usingDb && supabase) {
-      const { error } = await supabase.from('products').insert({
-        name: name.trim(),
-        descr: desc.trim() || 'AM/PM цуглуулгын бүтээгдэхүүн.',
-        price: p,
-        badge: badge.trim() || null,
-        image: image || null,
-      })
+      const { error } = editingId
+        ? await supabase.from('products').update(fields).eq('id', editingId)
+        : await supabase.from('products').insert(fields)
       setBusy(false)
       if (error) {
         setError('Хадгалахад алдаа гарлаа: ' + error.message)
@@ -981,14 +1145,16 @@ function AdminPanel({
       await reloadProducts()
     } else {
       const product: Product = {
-        id: `custom-${Date.now()}`,
-        name: name.trim(),
-        desc: desc.trim() || 'AM/PM цуглуулгын бүтээгдэхүүн.',
+        id: editingId ?? `custom-${Date.now()}`,
+        name: fields.name,
+        desc: fields.descr,
         price: p,
-        badge: badge.trim() || undefined,
+        badge: fields.badge ?? undefined,
         image,
       }
-      const next = [...products, product]
+      const next = editingId
+        ? products.map((x) => (x.id === editingId ? product : x))
+        : [...products, product]
       if (!saveJson(LOCAL_PRODUCTS_KEY, next)) {
         setBusy(false)
         setError('Хадгалах боломжгүй (зураг хэт том байж магадгүй).')
@@ -998,12 +1164,7 @@ function AdminPanel({
       setBusy(false)
     }
 
-    setName('')
-    setDesc('')
-    setPrice('')
-    setBadge('')
-    setImage(undefined)
-    setImageRaw(undefined)
+    resetForm()
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -1189,10 +1350,27 @@ function AdminPanel({
           </div>
         ) : (
           <>
-            <form onSubmit={submitProduct} className="rounded-3xl p-6 sm:p-8 mb-6" style={{ backgroundColor: '#EDEDED' }}>
-              <h2 className="text-[15px] font-semibold text-gray-900 mb-5 flex items-center gap-2">
-                <Plus size={16} className="text-blue-500" /> Шинэ бүтээгдэхүүн
-              </h2>
+            <form
+              ref={formRef}
+              onSubmit={submitProduct}
+              className="rounded-3xl p-6 sm:p-8 mb-6"
+              style={{ backgroundColor: '#EDEDED' }}
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-[15px] font-semibold text-gray-900 flex items-center gap-2">
+                  <Plus size={16} className="text-blue-500" />{' '}
+                  {editingId ? 'Бүтээгдэхүүн засварлах' : 'Шинэ бүтээгдэхүүн'}
+                </h2>
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="text-[12px] text-gray-500 hover:text-red-500 transition-colors"
+                  >
+                    ✕ Засварыг болих
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[12px] font-medium text-gray-700">Нэр *</span>
@@ -1242,14 +1420,21 @@ function AdminPanel({
                 </label>
               </div>
               {imageRaw && <ImageAdjuster src={imageRaw} onAdjusted={onAdjusted} />}
+              {!imageRaw && editingId && image && (
+                <div className="mt-4">
+                  <p className="text-[11.5px] text-gray-500 mb-1.5">Одоогийн зураг (солих бол шинэ файл сонгоно):</p>
+                  <img src={image} alt="Одоогийн зураг" className="h-24 rounded-xl object-cover" />
+                </div>
+              )}
               {error && <p className="mt-4 text-[12.5px] text-red-500">{error}</p>}
-              {saved && <p className="mt-4 text-[12.5px] text-green-600">Бүтээгдэхүүн нэмэгдлээ ✓</p>}
+              {saved && <p className="mt-4 text-[12.5px] text-green-600">Хадгалагдлаа ✓</p>}
               <button
                 type="submit"
                 disabled={busy}
                 className="mt-6 inline-flex items-center gap-2 text-[13px] font-medium text-white bg-blue-500 rounded-full px-6 py-2.5 hover:bg-blue-600 transition-colors disabled:opacity-60"
               >
-                {busy ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Нэмэх
+                {busy ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}{' '}
+                {editingId ? 'Хадгалах' : 'Нэмэх'}
               </button>
             </form>
 
@@ -1279,6 +1464,12 @@ function AdminPanel({
                           {p.badge}
                         </span>
                       )}
+                      <button
+                        onClick={() => startEdit(p)}
+                        className="shrink-0 text-[11.5px] font-medium text-blue-600 border border-blue-300 rounded-full px-3 py-1 hover:bg-blue-50 transition-colors"
+                      >
+                        Засах
+                      </button>
                       <button
                         onClick={() => removeProduct(p.id)}
                         aria-label="Устгах"
