@@ -292,6 +292,196 @@ function Callout({
   )
 }
 
+/* ---------------- Auto-playing video ---------------- */
+
+/**
+ * Video that reliably autoplays on phones: forces the muted property before
+ * play (React attribute quirk), retries on load/visibility, and falls back to
+ * the first touch anywhere on the page (covers iOS Low Power Mode).
+ */
+function AutoVideo({
+  src,
+  className = '',
+  ariaHidden = false,
+}: {
+  src: string
+  className?: string
+  ariaHidden?: boolean
+}) {
+  const ref = useRef<HTMLVideoElement>(null)
+
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.muted = true
+    v.defaultMuted = true
+    const tryPlay = () => {
+      if (v.paused) v.play().catch(() => {})
+    }
+    tryPlay()
+    v.addEventListener('loadeddata', tryPlay)
+    v.addEventListener('canplay', tryPlay)
+    const onVis = () => {
+      if (!document.hidden) tryPlay()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    const kick = () => tryPlay()
+    window.addEventListener('touchstart', kick, { once: true, passive: true })
+    window.addEventListener('click', kick, { once: true })
+    return () => {
+      v.removeEventListener('loadeddata', tryPlay)
+      v.removeEventListener('canplay', tryPlay)
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('touchstart', kick)
+      window.removeEventListener('click', kick)
+    }
+  }, [])
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      className={className}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      aria-hidden={ariaHidden || undefined}
+    />
+  )
+}
+
+/* ---------------- Admin image adjuster ---------------- */
+
+const ADJ_W = 320
+const ADJ_H = 240
+
+/**
+ * Lets the admin compose how a product photo will appear on the 4:3 card:
+ * drag to reposition, slider to zoom. The composed crop is rendered to an
+ * 800x600 canvas and saved, so the shop shows exactly what was framed here.
+ */
+function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: string) => void }) {
+  const [img, setImg] = useState<HTMLImageElement | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [off, setOff] = useState({ x: 0, y: 0 })
+  const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
+
+  const coverScale = img ? Math.max(ADJ_W / img.naturalWidth, ADJ_H / img.naturalHeight) : 1
+  const s = coverScale * zoom
+
+  const clampOff = useCallback(
+    (x: number, y: number, zoomV = zoom) => {
+      if (!img) return { x: 0, y: 0 }
+      const sc = coverScale * zoomV
+      const maxX = Math.max(0, (img.naturalWidth * sc - ADJ_W) / 2)
+      const maxY = Math.max(0, (img.naturalHeight * sc - ADJ_H) / 2)
+      return { x: Math.min(maxX, Math.max(-maxX, x)), y: Math.min(maxY, Math.max(-maxY, y)) }
+    },
+    [img, coverScale, zoom],
+  )
+
+  const emit = useCallback(
+    (zoomV: number, offV: { x: number; y: number }) => {
+      if (!img) return
+      const sc = coverScale * zoomV
+      const canvas = document.createElement('canvas')
+      canvas.width = 800
+      canvas.height = 600
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      const left = ADJ_W / 2 - (img.naturalWidth * sc) / 2 + offV.x
+      const top = ADJ_H / 2 - (img.naturalHeight * sc) / 2 + offV.y
+      ctx.drawImage(img, -left / sc, -top / sc, ADJ_W / sc, ADJ_H / sc, 0, 0, 800, 600)
+      onAdjusted(canvas.toDataURL('image/jpeg', 0.85))
+    },
+    [img, coverScale, onAdjusted],
+  )
+
+  useEffect(() => {
+    const i = new Image()
+    i.onload = () => {
+      setImg(i)
+      setZoom(1)
+      setOff({ x: 0, y: 0 })
+    }
+    i.src = src
+  }, [src])
+
+  // initial composition once the image is ready
+  useEffect(() => {
+    if (img) emit(1, { x: 0, y: 0 })
+  }, [img, emit])
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    dragRef.current = { x: e.clientX, y: e.clientY, ox: off.x, oy: off.y }
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return
+    const d = dragRef.current
+    setOff(clampOff(d.ox + (e.clientX - d.x), d.oy + (e.clientY - d.y)))
+  }
+  const onPointerUp = () => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    emit(zoom, off)
+  }
+
+  const onZoom = (z: number) => {
+    const next = clampOff(off.x, off.y, z)
+    setZoom(z)
+    setOff(next)
+    emit(z, next)
+  }
+
+  if (!img) return null
+
+  return (
+    <div className="mt-4">
+      <p className="text-[12px] font-medium text-gray-700 mb-2">
+        Картан дээр хэрхэн харагдахыг тохируулна уу — зургийг чирж байрлуулж, доорх гулсагчаар томруулна
+      </p>
+      <div
+        className="relative overflow-hidden rounded-xl bg-gray-200 cursor-grab active:cursor-grabbing touch-none select-none"
+        style={{ width: ADJ_W, height: ADJ_H }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <img
+          src={src}
+          alt=""
+          draggable={false}
+          className="absolute max-w-none pointer-events-none"
+          style={{
+            width: img.naturalWidth * s,
+            height: img.naturalHeight * s,
+            left: ADJ_W / 2 - (img.naturalWidth * s) / 2 + off.x,
+            top: ADJ_H / 2 - (img.naturalHeight * s) / 2 + off.y,
+          }}
+        />
+        <div className="absolute inset-0 ring-2 ring-inset ring-blue-400/60 rounded-xl pointer-events-none" />
+      </div>
+      <div className="mt-3 flex items-center gap-3" style={{ width: ADJ_W }}>
+        <span className="text-[11px] text-gray-500">Томруулах</span>
+        <input
+          type="range"
+          min={1}
+          max={3}
+          step={0.05}
+          value={zoom}
+          onChange={(e) => onZoom(Number(e.target.value))}
+          className="flex-1 accent-blue-500"
+        />
+        <span className="text-[11px] text-gray-500 w-8">{zoom.toFixed(1)}×</span>
+      </div>
+    </div>
+  )
+}
+
 /* ---------------- Address map picker ---------------- */
 
 function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: number) => void }) {
@@ -690,10 +880,13 @@ function AdminPanel({
   const [desc, setDesc] = useState('')
   const [price, setPrice] = useState('')
   const [badge, setBadge] = useState('')
+  const [imageRaw, setImageRaw] = useState<string | undefined>()
   const [image, setImage] = useState<string | undefined>()
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  const onAdjusted = useCallback((out: string) => setImage(out), [])
 
   const usingDb = !!supabase
 
@@ -758,7 +951,7 @@ function AdminPanel({
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => setImage(String(reader.result))
+    reader.onload = () => setImageRaw(String(reader.result))
     reader.readAsDataURL(file)
   }
 
@@ -810,6 +1003,7 @@ function AdminPanel({
     setPrice('')
     setBadge('')
     setImage(undefined)
+    setImageRaw(undefined)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -1042,12 +1236,12 @@ function AdminPanel({
                   <span className="text-[12px] font-medium text-gray-700">Зураг (сонголтоор)</span>
                   <span className="relative rounded-xl bg-white px-4 py-2.5 text-[13px] text-gray-500 cursor-pointer border border-dashed border-gray-300 hover:border-blue-400 transition-colors flex items-center gap-2 overflow-hidden">
                     <ImagePlus size={15} className="shrink-0" />
-                    <span className="truncate">{image ? 'Зураг сонгогдсон ✓' : 'Файл сонгох…'}</span>
+                    <span className="truncate">{imageRaw ? 'Зураг сонгогдсон ✓' : 'Файл сонгох…'}</span>
                     <input type="file" accept="image/*" onChange={onFile} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </span>
                 </label>
               </div>
-              {image && <img src={image} alt="Урьдчилан харах" className="mt-4 h-24 rounded-xl object-cover" />}
+              {imageRaw && <ImageAdjuster src={imageRaw} onAdjusted={onAdjusted} />}
               {error && <p className="mt-4 text-[12.5px] text-red-500">{error}</p>}
               {saved && <p className="mt-4 text-[12.5px] text-green-600">Бүтээгдэхүүн нэмэгдлээ ✓</p>}
               <button
@@ -1121,6 +1315,7 @@ function useWideViewport() {
 function App() {
   const [cart, setCart] = useState<CartItem[]>(() => loadJson<CartItem[]>(CART_KEY, []))
   const [cartOpen, setCartOpen] = useState(false)
+  const [viewProduct, setViewProduct] = useState<Product | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(!!supabase)
   const [loadError, setLoadError] = useState('')
@@ -1227,22 +1422,14 @@ function App() {
       <header className="relative min-h-screen overflow-hidden bg-black">
         {wide ? (
           <>
-            <video
+            <AutoVideo
               className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 brightness-[0.45]"
               src="/video/ampm-hero.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
-              aria-hidden
+              ariaHidden
             />
-            <video
+            <AutoVideo
               className="absolute inset-0 w-full h-full object-contain"
               src="/video/ampm-hero.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
             />
             <div
               className="absolute inset-0 pointer-events-none"
@@ -1253,13 +1440,9 @@ function App() {
             />
           </>
         ) : (
-          <video
+          <AutoVideo
             className="absolute inset-0 w-full h-full object-cover"
             src="/video/ampm-hero.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
           />
         )}
         <div className="relative z-10 flex flex-col min-h-screen">
@@ -1400,7 +1583,11 @@ function App() {
                     {p.badge}
                   </span>
                 )}
-                <div className="relative aspect-[4/3] overflow-hidden">
+                <button
+                  onClick={() => setViewProduct(p)}
+                  className="relative aspect-[4/3] overflow-hidden w-full text-left cursor-zoom-in"
+                  aria-label={`${p.name} — томруулж харах`}
+                >
                   {p.image ? (
                     <img
                       src={p.image}
@@ -1408,16 +1595,12 @@ function App() {
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <video
+                    <AutoVideo
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       src="/video/ampm-hero.mp4"
-                      muted
-                      loop
-                      playsInline
-                      autoPlay
                     />
                   )}
-                </div>
+                </button>
                 <div className="p-6 flex flex-col flex-1">
                   <h3 className="text-[15px] font-medium text-gray-900 mb-1.5">{p.name}</h3>
                   <p className="text-[12.5px] text-gray-500 mb-4">{p.desc}</p>
@@ -1528,6 +1711,54 @@ function App() {
           </div>
         </Reveal>
       </footer>
+
+      {/* ---------- Product lightbox ---------- */}
+      {viewProduct && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setViewProduct(null)} />
+          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-[#f7f7f5] shadow-2xl">
+            <button
+              onClick={() => setViewProduct(null)}
+              aria-label="Хаах"
+              className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+            >
+              <X size={17} />
+            </button>
+            <div className="aspect-[4/3] bg-black">
+              {viewProduct.image ? (
+                <img src={viewProduct.image} alt={viewProduct.name} className="h-full w-full object-contain" />
+              ) : (
+                <AutoVideo src="/video/ampm-hero.mp4" className="h-full w-full object-contain" />
+              )}
+            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[17px] font-semibold text-gray-900">{viewProduct.name}</h3>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-gray-500">{viewProduct.desc}</p>
+                </div>
+                {viewProduct.badge && (
+                  <span className="shrink-0 rounded-full bg-blue-500 px-2.5 py-1 text-[10.5px] font-semibold text-white">
+                    {viewProduct.badge}
+                  </span>
+                )}
+              </div>
+              <div className="mt-5 flex items-center justify-between">
+                <span className="text-[18px] font-bold text-gray-900">{fmt(viewProduct.price)}</span>
+                <button
+                  onClick={() => {
+                    addToCart(viewProduct.id)
+                    setViewProduct(null)
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full bg-blue-500 px-6 py-2.5 text-[13px] font-semibold text-white hover:bg-blue-600 transition-colors"
+                >
+                  <ShoppingBag size={14} /> Сагсанд нэмэх
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <CartDrawer
         open={cartOpen}
