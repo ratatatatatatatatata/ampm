@@ -209,52 +209,59 @@ const features = [
   },
 ]
 
-const calloutIconCls = 'w-5 h-5 text-[#e8b49e]'
-const callouts = {
-  left: [
-    {
-      no: '01',
-      title: 'Жижиг толгойтой, өргөн форматтай толгой',
-      desc: 'Бүх талыг хамарсан, үр дүнтэй цэвэрлэгээ',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={calloutIconCls}>
-          <rect x="8" y="3" width="8" height="12" rx="4" />
-          <path d="M10 6v6M12 5v8M14 6v6M12 15v6" />
-        </svg>
-      ),
-    },
-    {
-      no: '03',
-      title: 'KR PBT сойзны хялгас',
-      desc: 'Гаднаа зөөлөн, дотроо бат — шүдийг цэвэрлэж, буйлыг хамгаална',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={calloutIconCls}>
-          <path d="M8 20V8M12 20V5M16 20V8" />
-          <path d="M8 8c0-2 1-3 1-3M12 5c0-1.5.5-2.5.5-2.5M16 8c0-2-1-3-1-3" />
-        </svg>
-      ),
-    },
-  ],
-  right: [
-    {
-      no: '02',
-      title: 'Тансаг цахилгаан бүрэлттэй бариул',
-      desc: 'Металл бүрэлт — дэгжин, тансаг мэдрэмжийг илэрхийлнэ',
-      icon: <Zap size={19} className="text-[#e8b49e]" />,
-    },
-    {
-      no: '04',
-      title: 'Гоёмсог сойзны хайрцаг',
-      desc: 'Цэвэр, эрүүл ахуйтай, авсаархан бөгөөд загварлаг',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={calloutIconCls}>
-          <rect x="9" y="2" width="6" height="20" rx="2" />
-          <path d="M11 6h2" />
-        </svg>
-      ),
-    },
-  ],
-}
+const goldIconCls = 'w-6 h-6 text-[#d9b483]'
+const qualityCards = [
+  {
+    no: '01',
+    title: 'Тансаг цахилгаан бүрэлттэй бариул',
+    desc: 'Металл бүрэлт — дэгжин, тансаг мэдрэмжийг илэрхийлнэ',
+    icon: <Zap size={22} className="text-[#d9b483]" />,
+  },
+  {
+    no: '02',
+    title: 'Жижиг толгойтой, өргөн форматтай толгой',
+    desc: 'Бүх талыг хамарсан, үр дүнтэй цэвэрлэгээ',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={goldIconCls}>
+        <rect x="8" y="3" width="8" height="12" rx="4" />
+        <path d="M10 6v6M12 5v8M14 6v6M12 15v6" />
+      </svg>
+    ),
+  },
+  {
+    no: '03',
+    title: 'KR PBT сойзны хялгас',
+    desc: 'Гаднаа зөөлөн, дотроо бат — шүдийг цэвэрлэж, буйлыг хамгаална',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={goldIconCls}>
+        <path d="M8 20V8M12 20V5M16 20V8" />
+        <path d="M8 8c0-2 1-3 1-3M12 5c0-1.5.5-2.5.5-2.5M16 8c0-2-1-3-1-3" />
+      </svg>
+    ),
+  },
+  {
+    no: '04',
+    title: 'Гоёмсог сойзны хайрцаг',
+    desc: 'Цэвэр, эрүүл ахуйтай, авсаархан бөгөөд загварлаг',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={goldIconCls}>
+        <rect x="9" y="2" width="6" height="20" rx="2" />
+        <path d="M11 6h2" />
+      </svg>
+    ),
+  },
+]
+
+const specs = [
+  { label: 'Брэнд', value: 'AM/PM' },
+  { label: 'Загварын дугаар', value: 'B908' },
+  { label: 'Хялгасны төрөл', value: 'Зөөлөн хялгас' },
+  { label: 'Утасны нэрлэсэн диаметр', value: '0.152мм' },
+  { label: 'Үзүүрийн диаметр', value: '0.01мм' },
+  { label: 'Хялгасны материал', value: 'KR PBT' },
+  { label: 'Бариулын өнгө', value: 'Ягаан алт бүрэлт' },
+  { label: 'Хэмжээ', value: '190мм × 16мм' },
+]
 
 const reviews = [
   {
@@ -271,24 +278,13 @@ const reviews = [
   },
 ]
 
-function Callout({
-  c,
-  align,
-}: {
-  c: { no: string; title: string; desc: string; icon: ReactNode }
-  align: 'left' | 'right'
-}) {
+/** Алтлаг гарчиг — брэндийн хар хуудсуудын хэв маяг */
+function GoldHeading({ line1, line2 }: { line1: string; line2: string }) {
   return (
-    <div className={`flex flex-col gap-2 ${align === 'left' ? 'items-start text-left' : 'items-end text-right'}`}>
-      <div className="w-11 h-11 rounded-full border border-[#e8b49e]/30 bg-white/5 flex items-center justify-center">
-        {c.icon}
-      </div>
-      <h4 className="text-[13px] font-semibold text-white leading-snug max-w-[200px]">{c.title}</h4>
-      <p className="text-[11px] text-white/50 leading-relaxed max-w-[200px]">{c.desc}</p>
-      <span className="text-[10px] text-[#e8b49e]/70 border border-[#e8b49e]/30 rounded-full w-6 h-6 flex items-center justify-center">
-        {c.no}
-      </span>
-    </div>
+    <h2 className="text-center leading-tight tracking-tight">
+      <span className="block font-light text-[1.6rem] sm:text-[2.2rem] text-[#e8cfa4]">{line1}</span>
+      <span className="block font-semibold text-[1.6rem] sm:text-[2.2rem] text-[#d9b483]">{line2}</span>
+    </h2>
   )
 }
 
@@ -1740,51 +1736,171 @@ function App() {
         </div>
       </section>
 
-      {/* ---------- Design story: AM/PM poster infographic ---------- */}
-      <section id="about" className="py-10 sm:py-16 px-6 sm:px-12 md:px-20 lg:px-28">
-        <Reveal className="max-w-xl mb-10">
-          <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Бидний тухай</p>
-          <h2 className="text-[1.5rem] sm:text-[2rem] leading-[1.15] font-medium text-gray-900 tracking-tight">
-            Алхам бүрдээ нарийн бодолцсон.
-          </h2>
-        </Reveal>
-        <Reveal>
-          <div className="relative rounded-3xl overflow-hidden bg-[#0a0908] shadow-2xl">
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] items-center gap-8 p-8 sm:p-12">
-              <div className="hidden lg:flex flex-col justify-between gap-16 py-10">
-                {callouts.left.map((c) => (
-                  <Callout key={c.no} c={c} align="left" />
-                ))}
-              </div>
+      {/* ---------- Brand showcase: хар-алтлаг брэндийн хуудсууд ---------- */}
+      <section id="about" className="bg-[#0b0a09] py-20 sm:py-28">
+        <div className="mx-auto max-w-5xl px-6 sm:px-10 space-y-24 sm:space-y-32">
+          {/* A — Ялгаатай гялбаа */}
+          <Reveal>
+            <GoldHeading line1="Ялгаатай гялбаа." line2="Мэдрэгдэх чанар." />
+            <div className="mt-6 flex justify-center">
+              <span className="rounded-full border border-[#d9b483]/60 px-5 py-2 text-[11.5px] sm:text-[12.5px] text-[#e8cfa4] text-center">
+                Металл бүрэлт&nbsp;·&nbsp;Дээд зэрэглэлийн хайрцаг&nbsp;·&nbsp;Зөөлөн хялгас
+              </span>
+            </div>
+            <div className="mt-10 overflow-hidden rounded-3xl">
+              <img
+                src="/img/pdf10-2.jpg"
+                alt="AM/PM мөнгөлөг ба ягаан алт сойз"
+                className="w-full max-h-[560px] object-cover object-center"
+                loading="lazy"
+              />
+            </div>
+          </Reveal>
 
-              <div className="relative mx-auto w-full max-w-[300px] sm:max-w-[340px]">
+          {/* B — Чанарын баталгаа */}
+          <Reveal>
+            <GoldHeading line1="Уран дархны сэтгэл." line2="Чанарын баталгаа." />
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {qualityCards.map((c) => (
+                <div
+                  key={c.no}
+                  className="rounded-[1.8rem] bg-gradient-to-b from-[#2e2b28] to-[#171513] p-8 sm:p-10 text-center border border-white/5"
+                >
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-[#d9b483]/60">
+                    {c.icon}
+                  </div>
+                  <h3 className="mt-6 text-[15px] font-semibold text-[#d9b483] leading-snug">{c.title}</h3>
+                  <p className="mt-2.5 text-[12.5px] leading-relaxed text-white/55">{c.desc}</p>
+                  <span className="mt-5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#d9b483] text-[10.5px] font-bold text-[#171513]">
+                    {c.no}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+
+          {/* C — Алтлаг панель */}
+          <Reveal>
+            <GoldHeading line1="Буйлыг зөөлөн хамгаалж," line2="нарийн гүн цэвэрлэгээ" />
+            <p className="mt-4 text-center text-[13px] text-white/55">
+              Шүд хоорондын зайг үр дүнтэй цэвэрлэхийн зэрэгцээ буйлаа хамгаална
+            </p>
+            <div className="relative mt-10 overflow-hidden rounded-[2rem] bg-gradient-to-b from-[#efd7ab] via-[#dcc08d] to-[#b6905f] p-6 sm:p-10">
+              <div className="relative mx-auto max-w-sm">
                 <img
-                  src="/img/ampm-still.jpg"
-                  alt="AM/PM хос сойз"
-                  className="w-full rounded-2xl"
-                  style={{
-                    maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)',
-                    WebkitMaskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)',
-                  }}
+                  src="/img/pdf09-1.jpg"
+                  alt="AM/PM сойзны нарийн хялгас"
+                  className="w-full rounded-2xl shadow-2xl"
+                  loading="lazy"
                 />
-              </div>
-
-              <div className="hidden lg:flex flex-col justify-between gap-16 py-10 items-end">
-                {callouts.right.map((c) => (
-                  <Callout key={c.no} c={c} align="right" />
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 lg:hidden">
-                {[...callouts.left, ...callouts.right]
-                  .sort((a, b) => a.no.localeCompare(b.no))
-                  .map((c) => (
-                    <Callout key={c.no} c={c} align="left" />
-                  ))}
+                <span className="absolute left-2 top-[16%] sm:-left-10 rounded-full bg-gradient-to-r from-[#f4e3bd] to-[#dcc08d] px-4 py-2 text-[11px] font-semibold text-[#4a3a24] shadow-lg">
+                  0.152мм давхар үзүүрт утас
+                </span>
+                <span className="absolute right-2 bottom-[24%] sm:-right-10 rounded-full bg-gradient-to-r from-[#f4e3bd] to-[#dcc08d] px-4 py-2 text-[11px] font-semibold text-[#4a3a24] shadow-lg">
+                  Тансаг бүрэлттэй бариул
+                </span>
               </div>
             </div>
-          </div>
-        </Reveal>
+          </Reveal>
+
+          {/* D — 0.01мм үзүүр */}
+          <Reveal>
+            <h2 className="text-center leading-tight">
+              <span className="block font-bold text-[2rem] sm:text-[2.6rem] text-[#d9b483]">0.01мм*</span>
+              <span className="block font-semibold text-[1.4rem] sm:text-[1.9rem] text-[#e8cfa4]">
+                Үзүүрийн диаметр
+              </span>
+            </h2>
+            <p className="mx-auto mt-4 max-w-md text-center text-[13px] leading-relaxed text-white/55">
+              Шүд хоорондын завсарт гүн нэвтэрч, шүд болон буйлан дээрх өнгөрийг гүнзгий цэвэрлэнэ.
+            </p>
+            <div className="mx-auto mt-10 max-w-2xl">
+              <div className="flex justify-between text-[11.5px] text-white/70 px-2">
+                <span>Үзүүр &lt; 0.1мм ▾</span>
+                <span>Диаметр &lt; 0.15мм ▾</span>
+              </div>
+              <svg viewBox="0 0 600 190" className="mt-2 w-full" aria-hidden>
+                <path
+                  d="M 20 30 C 320 22, 560 30, 570 85 C 578 145, 340 158, 20 150"
+                  fill="none"
+                  stroke="#f5f0e8"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M 20 42 C 300 36, 540 44, 548 85 C 554 132, 320 146, 20 138"
+                  fill="none"
+                  stroke="#f5f0e8"
+                  strokeWidth="1.5"
+                  opacity="0.5"
+                />
+              </svg>
+              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-[#d9b483]/25 bg-white/[0.03] p-5 text-center">
+                  <p className="text-[12.5px] font-semibold text-[#e8cfa4]">0.01мм давхар үзүүрт утас</p>
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-white/50">
+                    Шүдний завсарт гүн нэвтэрч, ширхэг бүрээрээ цэвэрлэнэ
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+                  <p className="text-[12.5px] font-semibold text-white/70">Энгийн зүлгүүрийн хялгас</p>
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-white/40">
+                    Буйлыг гэмтээж, өнгөрийн үлдэгдэл үлдээдэг
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+          {/* E — Бүтээгдэхүүний мэдээлэл */}
+          <Reveal>
+            <h2 className="text-center text-[1.5rem] sm:text-[2rem] font-bold tracking-wide text-white">
+              БҮТЭЭГДЭХҮҮНИЙ МЭДЭЭЛЭЛ
+            </h2>
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-[1fr_1.3fr] items-center gap-8 sm:gap-12">
+              <div className="overflow-hidden rounded-3xl">
+                <img
+                  src="/img/pdf10-1.jpg"
+                  alt="AM/PM ягаан алт сойз"
+                  className="w-full max-h-[380px] sm:max-h-[520px] object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <dl>
+                {specs.map((s) => (
+                  <div
+                    key={s.label}
+                    className="flex items-baseline justify-between gap-4 border-b border-dotted border-white/15 py-3"
+                  >
+                    <dt className="text-[12.5px] text-white/50">* {s.label}</dt>
+                    <dd className="text-[13.5px] font-semibold text-white text-right">{s.value}</dd>
+                  </div>
+                ))}
+                <p className="mt-4 text-[10.5px] text-white/35">
+                  Бүтээгдэхүүний хэмжээг гараар хэмжсэн тул бага зэргийн зөрүү гарч болно.
+                </p>
+              </dl>
+            </div>
+          </Reveal>
+
+          {/* F — Амьдралын хэв маяг */}
+          <Reveal>
+            <div className="relative overflow-hidden rounded-3xl">
+              <img
+                src="/img/pdf09-3.jpg"
+                alt="AM/PM хэрэглэгч"
+                className="w-full max-h-[480px] object-cover object-top"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-7 sm:p-10 text-center">
+                <p className="font-light text-[1.3rem] sm:text-[1.8rem] leading-snug text-[#e8cfa4]">
+                  Инээмсэглэл бүрд — <span className="font-semibold text-white">AM/PM</span>
+                </p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
       </section>
 
       {/* ---------- Products ---------- */}
