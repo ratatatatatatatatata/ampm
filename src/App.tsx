@@ -2704,7 +2704,7 @@ function App() {
         <Reveal className="max-w-xl mb-12">
           <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Яагаад AM/PM гэж?</p>
           <h2 className="text-[1.5rem] sm:text-[2rem] leading-[1.15] font-medium text-gray-900 tracking-tight">
-            Шүдээ угаах өдөр тутмын дадлаа тансаг арчилгааны зан үйл болгоорой.
+            Өдөр бүрийг өөртөө итгэлтэйгээр мэдэр.
           </h2>
         </Reveal>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2728,7 +2728,7 @@ function App() {
         <div className="mx-auto max-w-5xl px-6 sm:px-10 space-y-24 sm:space-y-32">
           {/* A — Ялгаатай гялбаа */}
           <Reveal>
-            <GoldHeading line1="Ялгарах гялбаа." line2="Мэдрэгдэх чанар." />
+            <GoldHeading line1="Бусдаас тодор." line2="Илүү мэдэгдэхүйц үр дүнг хар." />
             <div className="mt-6 flex justify-center">
               <span className="rounded-full border border-[#d9b483]/60 px-5 py-2 text-[11.5px] sm:text-[12.5px] text-[#e8cfa4] text-center">
                 Металл бүрэлт&nbsp;·&nbsp;Дээд зэрэглэлийн хайрцаг&nbsp;·&nbsp;Зөөлөн хялгас
@@ -2746,7 +2746,7 @@ function App() {
 
           {/* B — Чанарын баталгаа */}
           <Reveal>
-            <GoldHeading line1="Уран дарханы нарийн хийц." line2="Чанарын бүрэн баталгаа." />
+            <GoldHeading line1="Сүүлийн үеийн дэвшилтэт технологийн үр шим." line2="Гайхалтай чанарын баталгаа." />
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-5">
               {qualityCards.map((c) => (
                 <div
