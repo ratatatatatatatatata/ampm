@@ -109,11 +109,27 @@ type Order = {
   address: string
   status: string
   created_at: string
+  paymentMethod?: string
 }
 
 const CART_KEY = 'ampm-cart'
 const LOCAL_PRODUCTS_KEY = 'ampm-admin-products'
 const LOCAL_ORDERS_KEY = 'ampm-orders'
+
+const DELIVERY_FEE = 6000
+
+// TODO: Жинхэнэ дансны мэдээллээ энд солино уу
+const BANK_INFO = {
+  bank: 'Хаан банк',
+  account: '5000 000 000',
+  holder: 'AM/PM',
+}
+
+type QpayData = {
+  qr_image?: string
+  qr_text?: string
+  urls?: { name: string; description?: string; logo?: string; link: string }[]
+}
 
 const loadJson = <T,>(key: string, fallback: T): T => {
   try {
@@ -155,6 +171,7 @@ const mapOrder = (r: any): Order => ({
   address: r.address,
   status: r.status ?? 'new',
   created_at: r.created_at ?? new Date().toISOString(),
+  paymentMethod: r.payment_method ?? undefined,
 })
 
 const fmt = (n: number) => `${n.toLocaleString('mn-MN')}₮`
@@ -541,7 +558,11 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
 
 /* ---------------- Address map picker ---------------- */
 
-type GeoSuggestion = { display_name: string; lat: string; lon: string }
+type GeoSuggestion = { label: string; lat?: number; lon?: number; placeId?: string }
+
+// Google Maps API түлхүүр тавигдсан үед хайлт Google Places ашиглана,
+// үгүй бол OpenStreetMap (Nominatim) дээр ажиллана.
+const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY as string | undefined
 
 function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: number) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -569,7 +590,7 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
       }).addTo(map)
   }
 
-  // Хайлтын autocomplete — Google Maps шиг бичих явцад санал гарна
+  // Хайлтын autocomplete — Google түлхүүртэй бол Google Places, үгүй бол OSM
   const onQuery = (q: string) => {
     setQuery(q)
     window.clearTimeout(timerRef.current)
@@ -580,11 +601,39 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
     timerRef.current = window.setTimeout(async () => {
       setSearching(true)
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=mn&accept-language=mn&limit=5&q=${encodeURIComponent(q)}`,
-        )
-        const j = (await res.json()) as GeoSuggestion[]
-        setSugs(Array.isArray(j) ? j : [])
+        if (GOOGLE_KEY) {
+          const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': GOOGLE_KEY,
+            },
+            body: JSON.stringify({
+              input: q,
+              languageCode: 'mn',
+              includedRegionCodes: ['MN'],
+            }),
+          })
+          const j = await res.json()
+          /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+          const items = (j.suggestions ?? []).map((s: any) => ({
+            label: s.placePrediction?.text?.text ?? '',
+            placeId: s.placePrediction?.placeId,
+          }))
+          setSugs(items.filter((s: GeoSuggestion) => s.label && s.placeId))
+        } else {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=mn&accept-language=mn&limit=5&q=${encodeURIComponent(q)}`,
+          )
+          const j = await res.json()
+          /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+          const items = (Array.isArray(j) ? j : []).map((s: any) => ({
+            label: s.display_name as string,
+            lat: Number(s.lat),
+            lon: Number(s.lon),
+          }))
+          setSugs(items)
+        }
       } catch {
         setSugs([])
       }
@@ -592,14 +641,28 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
     }, 450)
   }
 
-  const pickSuggestion = (s: GeoSuggestion) => {
-    const lat = Number(s.lat)
-    const lng = Number(s.lon)
+  const pickSuggestion = async (s: GeoSuggestion) => {
     setSugs([])
-    setQuery(s.display_name)
+    setQuery(s.label)
+    let lat = s.lat
+    let lng = s.lon
+    if (s.placeId && GOOGLE_KEY) {
+      try {
+        const res = await fetch(
+          `https://places.googleapis.com/v1/places/${s.placeId}?fields=location,formattedAddress`,
+          { headers: { 'X-Goog-Api-Key': GOOGLE_KEY } },
+        )
+        const j = await res.json()
+        lat = j.location?.latitude
+        lng = j.location?.longitude
+      } catch {
+        /* details unavailable */
+      }
+    }
+    if (lat == null || lng == null) return
     mapRef.current?.setView([lat, lng], 16)
     placeMarker(lat, lng)
-    onPickRef.current(s.display_name, lat, lng)
+    onPickRef.current(s.label, lat, lng)
   }
 
   useEffect(() => {
@@ -661,7 +724,7 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
                   className="w-full text-left px-4 py-2.5 text-[12.5px] text-gray-700 hover:bg-blue-50 flex items-start gap-2"
                 >
                   <MapPin size={13} className="mt-0.5 shrink-0 text-gray-400" />
-                  <span className="line-clamp-2">{s.display_name}</span>
+                  <span className="line-clamp-2">{s.label}</span>
                 </button>
               </li>
             ))}
@@ -737,10 +800,14 @@ function CartDrawer({
   removeItem: (id: string) => void
   clearCart: () => void
 }) {
-  const [step, setStep] = useState<'cart' | 'checkout' | 'done'>('cart')
+  const [step, setStep] = useState<'cart' | 'checkout' | 'done' | 'qpay'>('cart')
   const [contact, setContact] = useState('')
   const [address, setAddress] = useState('')
   const [latLng, setLatLng] = useState<{ lat: number; lng: number } | null>(null)
+  const [payMethod, setPayMethod] = useState<'transfer' | 'qpay'>('transfer')
+  const [qpayData, setQpayData] = useState<QpayData | null>(null)
+  const [doneNote, setDoneNote] = useState('')
+  const [doneTotal, setDoneTotal] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -756,6 +823,7 @@ function CartDrawer({
     .filter(Boolean) as (Product & { qty: number })[]
 
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0)
+  const grandTotal = total + (lines.length > 0 ? DELIVERY_FEE : 0)
 
   const onMapPick = useCallback((addr: string, lat: number, lng: number) => {
     setAddress(addr)
@@ -776,35 +844,77 @@ function CartDrawer({
     setBusy(true)
 
     const order = {
-      items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty })),
-      total,
+      items: [
+        ...lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty })),
+        { name: 'Хүргэлтийн төлбөр', price: DELIVERY_FEE, qty: 1 },
+      ],
+      total: grandTotal,
       contact: contact.trim(),
       address: address.trim(),
       lat: latLng?.lat ?? null,
       lng: latLng?.lng ?? null,
+      payment_method: payMethod,
     }
 
+    let orderId: string | null = null
     if (supabase) {
-      const { error } = await supabase.from('orders').insert(order)
-      setBusy(false)
+      let { data, error } = await supabase.from('orders').insert(order).select('id').single()
+      // payment_method багана хараахан нэмэгдээгүй бол түүнгүйгээр хадгална
+      if (error && /payment_method/i.test(error.message)) {
+        const { payment_method: _omit, ...rest } = order
+        void _omit
+        ;({ data, error } = await supabase.from('orders').insert(rest).select('id').single())
+      }
       if (error) {
+        setBusy(false)
         setError('Захиалга илгээхэд алдаа гарлаа: ' + error.message)
         return
       }
+      orderId = data?.id ? String(data.id) : null
     } else {
+      orderId = `local-${Date.now()}`
       const local = loadJson<Order[]>(LOCAL_ORDERS_KEY, [])
       saveJson(LOCAL_ORDERS_KEY, [
-        { ...order, id: `local-${Date.now()}`, status: 'new', created_at: new Date().toISOString() },
+        {
+          ...order,
+          id: orderId,
+          status: 'new',
+          created_at: new Date().toISOString(),
+          paymentMethod: payMethod,
+        },
         ...local,
       ])
-      setBusy(false)
     }
 
+    setDoneTotal(grandTotal)
     clearCart()
-    setStep('done')
     setContact('')
     setAddress('')
     setLatLng(null)
+
+    if (payMethod === 'qpay' && supabase) {
+      // QPay нэхэмжлэх үүсгэх (Edge Function тохируулагдсан үед)
+      try {
+        const { data, error } = await supabase.functions.invoke('qpay-invoice', {
+          body: { amount: grandTotal, orderId, description: 'AM/PM захиалга' },
+        })
+        setBusy(false)
+        if (error || data?.error) throw new Error(data?.error ?? error?.message)
+        setQpayData(data as QpayData)
+        setStep('qpay')
+        return
+      } catch {
+        setDoneNote(
+          'QPay түр ажиллахгүй байгаа тул доорх дансаар шилжүүлнэ үү. Захиалга тань бүртгэгдсэн.',
+        )
+        setStep('done')
+        return
+      }
+    }
+
+    setBusy(false)
+    setDoneNote('')
+    setStep('done')
   }
 
   if (!open) return null
@@ -820,7 +930,13 @@ function CartDrawer({
                 <ArrowLeft size={17} />
               </button>
             )}
-            {step === 'cart' ? 'Таны сагс' : step === 'checkout' ? 'Захиалга өгөх' : 'Баярлалаа!'}
+            {step === 'cart'
+              ? 'Таны сагс'
+              : step === 'checkout'
+                ? 'Захиалга өгөх'
+                : step === 'qpay'
+                  ? 'QPay төлбөр'
+                  : 'Баярлалаа!'}
           </h3>
           <button onClick={onClose} aria-label="Хаах" className="text-gray-400 hover:text-gray-900">
             <X size={18} />
@@ -829,17 +945,69 @@ function CartDrawer({
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {step === 'done' ? (
-            <div className="h-full flex flex-col items-center justify-center text-center gap-3">
+            <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
               <CheckCircle2 size={44} className="text-green-500" />
               <p className="text-[16px] font-semibold text-gray-900">Захиалга амжилттай илгээгдлээ!</p>
-              <p className="text-[13px] text-gray-500 max-w-[260px]">
-                Бид таны өгсөн холбоо барих мэдээллээр эргэн холбогдож, хүргэлтийг баталгаажуулна.
-              </p>
+              {doneNote && <p className="text-[12.5px] text-amber-600 max-w-[280px]">{doneNote}</p>}
+              <div className="mt-2 w-full max-w-[300px] rounded-2xl bg-white p-5 text-left">
+                <p className="mb-3 text-[13px] font-semibold text-gray-900">Төлбөр шилжүүлэх данс</p>
+                <div className="space-y-1.5 text-[13px] text-gray-700">
+                  <p>🏦 {BANK_INFO.bank}</p>
+                  <p>
+                    Данс: <b>{BANK_INFO.account}</b>
+                  </p>
+                  <p>Хүлээн авагч: {BANK_INFO.holder}</p>
+                  <p>
+                    Дүн: <b className="text-blue-600">{fmt(doneTotal)}</b>
+                  </p>
+                </div>
+                <p className="mt-3 border-t border-gray-100 pt-3 text-[11.5px] text-gray-500">
+                  Гүйлгээний утга дээр өөрийн утасны дугаараа бичнэ үү. Төлбөр орж ирмэгц бид
+                  холбогдож, хүргэлтийг баталгаажуулна.
+                </p>
+              </div>
               <button
                 onClick={onClose}
                 className="mt-3 rounded-full bg-blue-500 text-white text-[13px] font-medium px-7 py-2.5 hover:bg-blue-600 transition-colors"
               >
                 Хаах
+              </button>
+            </div>
+          ) : step === 'qpay' ? (
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <p className="text-[14px] font-semibold text-gray-900">
+                Нийт төлөх дүн: <span className="text-blue-600">{fmt(doneTotal)}</span>
+              </p>
+              {qpayData?.qr_image && (
+                <img
+                  src={`data:image/png;base64,${qpayData.qr_image}`}
+                  alt="QPay QR"
+                  className="h-52 w-52 rounded-2xl bg-white p-3"
+                />
+              )}
+              <p className="text-[12px] text-gray-500 max-w-[280px]">
+                QR кодыг банкны аппаараа уншуулах эсвэл доороос банкаа сонгоход апп чинь нээгдэж
+                төлбөр автоматаар бөглөгдөнө.
+              </p>
+              {qpayData?.urls && qpayData.urls.length > 0 && (
+                <div className="grid w-full grid-cols-2 gap-2">
+                  {qpayData.urls.map((u) => (
+                    <a
+                      key={u.name}
+                      href={u.link}
+                      className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-left text-[12px] font-medium text-gray-800 hover:shadow-md transition-shadow"
+                    >
+                      {u.logo && <img src={u.logo} alt="" className="h-6 w-6 rounded" />}
+                      <span className="truncate">{u.description ?? u.name}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={onClose}
+                className="mt-2 rounded-full bg-blue-500 text-white text-[13px] font-medium px-7 py-2.5 hover:bg-blue-600 transition-colors"
+              >
+                Болсон
               </button>
             </div>
           ) : step === 'cart' ? (
@@ -924,6 +1092,35 @@ function CartDrawer({
                 />
               </label>
 
+              {/* Төлбөрийн хэлбэр */}
+              <div>
+                <p className="mb-2 text-[12.5px] font-medium text-gray-700">Төлбөрийн хэлбэр</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPayMethod('transfer')}
+                    className={`rounded-2xl border-2 bg-white p-4 text-left transition-colors ${
+                      payMethod === 'transfer' ? 'border-blue-500' : 'border-transparent'
+                    }`}
+                  >
+                    <span className="text-[18px]">🏦</span>
+                    <p className="mt-1.5 text-[13px] font-semibold text-gray-900">Дансаар шилжүүлэх</p>
+                    <p className="mt-0.5 text-[11px] text-gray-500">Банкны данс руу шилжүүлэг хийнэ</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPayMethod('qpay')}
+                    className={`rounded-2xl border-2 bg-white p-4 text-left transition-colors ${
+                      payMethod === 'qpay' ? 'border-blue-500' : 'border-transparent'
+                    }`}
+                  >
+                    <span className="text-[18px]">📱</span>
+                    <p className="mt-1.5 text-[13px] font-semibold text-gray-900">QPay</p>
+                    <p className="mt-0.5 text-[11px] text-gray-500">Банкны аппаар шууд төлөх</p>
+                  </button>
+                </div>
+              </div>
+
               <div className="bg-white rounded-2xl p-4">
                 <p className="text-[12px] font-semibold text-gray-700 mb-2">Захиалга</p>
                 {lines.map((l) => (
@@ -934,9 +1131,15 @@ function CartDrawer({
                     <span>{fmt(l.price * l.qty)}</span>
                   </div>
                 ))}
+                <div className="flex justify-between text-[12.5px] text-gray-600 py-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <Truck size={13} /> Хүргэлтийн төлбөр
+                  </span>
+                  <span>{fmt(DELIVERY_FEE)}</span>
+                </div>
                 <div className="flex justify-between text-[14px] font-bold text-gray-900 border-t border-gray-100 mt-2 pt-2">
                   <span>Нийт</span>
-                  <span>{fmt(total)}</span>
+                  <span>{fmt(grandTotal)}</span>
                 </div>
               </div>
 
@@ -945,11 +1148,15 @@ function CartDrawer({
           )}
         </div>
 
-        {step !== 'done' && lines.length > 0 && (
+        {step !== 'done' && step !== 'qpay' && lines.length > 0 && (
           <div className="border-t border-gray-200 px-6 py-5 bg-white">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-[13px] text-gray-500">Нийт дүн</span>
-              <span className="text-[18px] font-bold text-gray-900">{fmt(total)}</span>
+              <span className="text-[13px] text-gray-500">
+                Нийт дүн{step === 'cart' && <span className="block text-[10.5px]">+ хүргэлт {fmt(DELIVERY_FEE)}</span>}
+              </span>
+              <span className="text-[18px] font-bold text-gray-900">
+                {fmt(step === 'cart' ? total : grandTotal)}
+              </span>
             </div>
             {step === 'cart' ? (
               <button
@@ -1363,6 +1570,11 @@ function AdminPanel({
                             <a href={`mailto:${o.contact}`} className="text-blue-600 hover:underline">
                               ✉ {o.contact}
                             </a>
+                          )}
+                          {o.paymentMethod && (
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+                              {o.paymentMethod === 'qpay' ? 'QPay' : 'Шилжүүлэг'}
+                            </span>
                           )}
                           {o.status === 'new' ? (
                             <span className="bg-blue-500 text-white text-[10px] font-bold rounded-full px-2 py-0.5">ШИНЭ</span>
