@@ -94,6 +94,7 @@ type Product = {
   price: number
   badge?: string
   image?: string
+  category?: string
 }
 
 type CartItem = { id: string; qty: number }
@@ -142,6 +143,7 @@ const mapRow = (r: any): Product => ({
   price: r.price,
   badge: r.badge ?? undefined,
   image: r.image ?? undefined,
+  category: r.category ?? undefined,
 })
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -1010,6 +1012,7 @@ function AdminPanel({
   const [desc, setDesc] = useState('')
   const [price, setPrice] = useState('')
   const [badge, setBadge] = useState('')
+  const [category, setCategory] = useState('')
   const [imageRaw, setImageRaw] = useState<string | undefined>()
   const [image, setImage] = useState<string | undefined>()
   const [error, setError] = useState('')
@@ -1026,6 +1029,7 @@ function AdminPanel({
     setDesc('')
     setPrice('')
     setBadge('')
+    setCategory('')
     setImage(undefined)
     setImageRaw(undefined)
     setError('')
@@ -1037,6 +1041,7 @@ function AdminPanel({
     setDesc(p.desc)
     setPrice(String(p.price))
     setBadge(p.badge ?? '')
+    setCategory(p.category ?? '')
     setImage(p.image) // шинэ зураг сонгохгүй бол хуучин зураг хэвээр үлдэнэ
     setImageRaw(undefined)
     setError('')
@@ -1121,18 +1126,31 @@ function AdminPanel({
     setError('')
     setBusy(true)
 
-    const fields = {
+    const fields: Record<string, unknown> = {
       name: name.trim(),
       descr: desc.trim() || 'AM/PM цуглуулгын бүтээгдэхүүн.',
       price: p,
       badge: badge.trim() || null,
       image: image || null,
+      category: category.trim() || null,
     }
 
+    let notice = ''
     if (usingDb && supabase) {
-      const { error } = editingId
-        ? await supabase.from('products').update(fields).eq('id', editingId)
-        : await supabase.from('products').insert(fields)
+      const save = (f: Record<string, unknown>) =>
+        editingId
+          ? supabase!.from('products').update(f).eq('id', editingId)
+          : supabase!.from('products').insert(f)
+      let { error } = await save(fields)
+      // category багана хараахан нэмэгдээгүй DB дээр ч ажиллана
+      if (error && /category/i.test(error.message)) {
+        const { category: _omit, ...rest } = fields
+        void _omit
+        ;({ error } = await save(rest))
+        if (!error && category.trim()) {
+          notice = 'Анхаар: ангилал хадгалагдсангүй — supabase/add-category.sql-ийг SQL Editor дээр ажиллуулна уу.'
+        }
+      }
       setBusy(false)
       if (error) {
         setError('Хадгалахад алдаа гарлаа: ' + error.message)
@@ -1142,11 +1160,12 @@ function AdminPanel({
     } else {
       const product: Product = {
         id: editingId ?? `custom-${Date.now()}`,
-        name: fields.name,
-        desc: fields.descr,
+        name: fields.name as string,
+        desc: fields.descr as string,
         price: p,
-        badge: fields.badge ?? undefined,
+        badge: (fields.badge as string | null) ?? undefined,
         image,
+        category: category.trim() || undefined,
       }
       const next = editingId
         ? products.map((x) => (x.id === editingId ? product : x))
@@ -1161,6 +1180,7 @@ function AdminPanel({
     }
 
     resetForm()
+    if (notice) setError(notice)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -1398,11 +1418,26 @@ function AdminPanel({
                   />
                 </label>
                 <label className="flex flex-col gap-1.5">
+                  <span className="text-[12px] font-medium text-gray-700">Ангилал (сонголтоор)</span>
+                  <input
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Ж: Сойз, Хүүхдийн, Иж бүрдэл…"
+                    list="category-suggestions"
+                    className="rounded-xl bg-white px-4 py-2.5 text-[13px] text-gray-900 outline-none border border-transparent focus:border-blue-400 transition-colors"
+                  />
+                  <datalist id="category-suggestions">
+                    {[...new Set(products.map((p) => p.category).filter(Boolean))].map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="flex flex-col gap-1.5">
                   <span className="text-[12px] font-medium text-gray-700">Badge (сонголтоор)</span>
                   <input
                     value={badge}
                     onChange={(e) => setBadge(e.target.value)}
-                    placeholder="Ж: Шинэ"
+                    placeholder="Ж: Шинэ, Онцлох"
                     className="rounded-xl bg-white px-4 py-2.5 text-[13px] text-gray-900 outline-none border border-transparent focus:border-blue-400 transition-colors"
                   />
                 </label>
@@ -1504,6 +1539,7 @@ function App() {
   const [cartOpen, setCartOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [viewProduct, setViewProduct] = useState<Product | null>(null)
+  const [activeCat, setActiveCat] = useState('all')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(!!supabase)
   const [loadError, setLoadError] = useState('')
@@ -1563,6 +1599,10 @@ function App() {
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0)
 
+  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[]
+  const filtered = activeCat === 'all' ? products : products.filter((p) => p.category === activeCat)
+  const featured = products.filter((p) => p.badge)
+
   if (route === '#admin') {
     return <AdminPanel products={products} reloadProducts={reloadProducts} session={session} />
   }
@@ -1571,12 +1611,16 @@ function App() {
     <div className="relative min-h-screen bg-[#f0f0ee]">
       {/* ---------- Fixed navbar ---------- */}
       <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-center pt-4 sm:pt-6 px-4 sm:px-8 gap-2 sm:gap-3">
-        <div
-          className="flex items-center justify-center rounded-full w-10 h-10 sm:w-11 sm:h-11 shrink-0 shadow-sm"
+        <a
+          href="#"
+          className="flex items-center gap-2 sm:gap-2.5 rounded-full pl-1.5 pr-3.5 sm:pr-5 py-1.5 shrink-0 shadow-sm"
           style={{ backgroundColor: '#EDEDED' }}
         >
-          <Logo />
-        </div>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
+            <Logo />
+          </span>
+          <span className="text-[13px] sm:text-[14px] font-bold tracking-wide text-gray-900">AM/PM</span>
+        </a>
         <div
           className="hidden sm:flex items-center gap-10 rounded-xl px-8 py-3 shadow-sm"
           style={{ backgroundColor: '#EDEDED' }}
@@ -1934,8 +1978,63 @@ function App() {
           </div>
         )}
 
+        {/* Ангилал — aident.mn маягийн шүүлтүүр */}
+        {categories.length > 0 && (
+          <div className="mb-8 flex gap-2.5 overflow-x-auto pb-2">
+            {['all', ...categories].map((c) => (
+              <button
+                key={c}
+                onClick={() => setActiveCat(c)}
+                className={`shrink-0 rounded-full px-5 py-2.5 text-[12.5px] font-medium transition-colors ${
+                  activeCat === c
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-400 hover:text-gray-900'
+                }`}
+              >
+                {c === 'all' ? 'Бүгд' : c}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Онцлох — badge-тэй бүтээгдэхүүний мөр */}
+        {activeCat === 'all' && featured.length > 0 && (
+          <div className="mb-12">
+            <h3 className="mb-4 flex items-center gap-2 text-[15px] font-semibold text-gray-900">
+              <Star size={15} className="text-blue-500 fill-blue-500" /> Онцлох
+            </h3>
+            <div className="flex gap-4 overflow-x-auto pb-3">
+              {featured.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setViewProduct(p)}
+                  className="group w-[210px] shrink-0 overflow-hidden rounded-2xl text-left transition-all hover:-translate-y-1 hover:shadow-lg"
+                  style={{ backgroundColor: '#EDEDED' }}
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden">
+                    {p.image ? (
+                      <img src={p.image} alt={p.name} className="absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <AutoVideo src="/video/ampm-hero.mp4" className="absolute inset-0 h-full w-full object-cover" />
+                    )}
+                    {p.badge && (
+                      <span className="absolute left-2.5 top-2.5 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                        {p.badge}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-3.5">
+                    <p className="truncate text-[13px] font-medium text-gray-900">{p.name}</p>
+                    <p className="mt-1 text-[13.5px] font-bold text-gray-900">{fmt(p.price)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {products.map((p, i) => (
+          {filtered.map((p, i) => (
             <Reveal key={p.id} delay={(i % 3) * 120}>
               <div
                 className="group relative rounded-3xl overflow-hidden h-full flex flex-col hover:-translate-y-1.5 hover:shadow-xl transition-all duration-300"
@@ -1965,6 +2064,11 @@ function App() {
                   )}
                 </button>
                 <div className="p-6 flex flex-col flex-1">
+                  {p.category && (
+                    <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-blue-500">
+                      {p.category}
+                    </p>
+                  )}
                   <h3 className="text-[15px] font-medium text-gray-900 mb-1.5">{p.name}</h3>
                   <p className="text-[12.5px] text-gray-500 mb-4">{p.desc}</p>
                   <div className="mt-auto flex items-center justify-between">
