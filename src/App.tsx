@@ -2768,7 +2768,7 @@ function App() {
 
           {/* C — Алтлаг панель */}
           <Reveal>
-            <GoldHeading line1="Буйлыг зөөлөн хамгаалж," line2="нарийн гүн цэвэрлэгээ" />
+            <GoldHeading line1="Буйлыг хамгаалж," line2="нарийн гүн цэвэрлэгээ" />
             <p className="mt-4 text-center text-[13px] text-white/55">
               Шүд хоорондын зайг үр дүнтэй цэвэрлэхийн зэрэгцээ буйлаа хамгаална
             </p>
