@@ -1418,6 +1418,7 @@ function ProfilePage({
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!supabase) return
     setBusy(true)
     await supabase.from('profiles').upsert({
       id: session.user.id,
