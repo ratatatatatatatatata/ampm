@@ -32,13 +32,36 @@ import {
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 
-function Logo() {
+/** AM/PM — гэр бүлийн дүрст тэмдэг (aesthetic oral care) */
+function Logo({ size = 36, variant = 'dark' }: { size?: number; variant?: 'dark' | 'light' }) {
+  const circle = variant === 'dark' ? '#111827' : '#ffffff'
+  const figure = variant === 'dark' ? '#ffffff' : '#111827'
   return (
-    <svg width="18" height="18" viewBox="0 0 256 256" fill="none">
-      <path
-        fill="rgb(84, 84, 84)"
-        d="M 160 88 L 194 34 L 216 0 L 256 0 L 256 40 L 221.5 93.5 L 200 128 L 256 128 L 256 256 L 96 256 L 96 168 L 64.246 220 L 40 256 L 0 256 L 0 216 L 34 162 L 56 128 L 0 128 L 0 0 L 160 0 Z"
-      />
+    <svg width={size} height={size} viewBox="0 0 120 120" aria-label="AM/PM">
+      <defs>
+        <clipPath id={`logo-clip-${variant}`}>
+          <circle cx="60" cy="58" r="46" />
+        </clipPath>
+      </defs>
+      <circle cx="60" cy="58" r="46" fill={circle} />
+      <g clipPath={`url(#logo-clip-${variant})`}>
+        {/* эцэг */}
+        <path
+          fill={figure}
+          d="M60 22c7.5 0 13 5.8 13 13.2 0 4.8-2 8.6-5.2 11l0 2.6c9 3 15.4 10 17.6 19.6L89 104H31l3.6-35.6C36.8 58.8 43.2 51.8 52.2 48.8l0-2.6C49 43.8 47 40 47 35.2 47 27.8 52.5 22 60 22z"
+        />
+        {/* эх */}
+        <path
+          fill={circle}
+          d="M60 52c5.2 0 9 4 9 9.2 0 3.6-1.6 6.2-4 7.8l0 2.2c6.6 2.2 10.6 7.4 11.6 15L78.6 104H41.4l2-17.8c1-7.6 5-12.8 11.6-15l0-2.2c-2.4-1.6-4-4.2-4-7.8C51 56 54.8 52 60 52z"
+        />
+        <circle fill={circle} cx="51" cy="53.5" r="4" />
+        {/* хүүхэд */}
+        <path
+          fill={figure}
+          d="M60 77c4 0 7 3 7 7 0 2.8-1.2 4.8-3.2 6l0 1.8c4.8 1.8 7.6 5.8 8.2 12.2H48c.6-6.4 3.4-10.4 8.2-12.2l0-1.8c-2-1.2-3.2-3.2-3.2-6 0-4 3-7 7-7z"
+        />
+      </g>
     </svg>
   )
 }
@@ -1493,9 +1516,7 @@ function AdminPanel({
         </div>
 
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex items-center justify-center rounded-full w-11 h-11" style={{ backgroundColor: '#EDEDED' }}>
-            <Logo />
-          </div>
+          <Logo size={44} />
           <div>
             <h1 className="text-[1.4rem] font-medium text-gray-900 tracking-tight">Админ панель</h1>
             <p className="text-[12.5px] text-gray-500">
@@ -1868,9 +1889,7 @@ function App() {
       <nav className="fixed top-0 inset-x-0 z-50 px-3 sm:px-6 pt-3">
         <div className="mx-auto flex max-w-6xl items-center gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-md">
           <a href="#" className="flex items-center gap-2.5 shrink-0">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900">
-              <span className="text-[8.5px] font-extrabold tracking-tight text-white">AM/PM</span>
-            </span>
+            <Logo size={40} />
             <span className="text-[14px] sm:text-[15px] font-bold text-gray-900 whitespace-nowrap">
               AM/PM шүдний сойз
             </span>
@@ -1919,9 +1938,7 @@ function App() {
         <div className="fixed inset-0 z-[100] flex flex-col bg-[#f0f0ee] lg:hidden">
           <div className="flex items-center justify-between px-5 py-5">
             <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center rounded-full w-10 h-10" style={{ backgroundColor: '#EDEDED' }}>
-                <Logo />
-              </div>
+              <Logo size={40} />
               <span className="text-[14px] font-semibold text-gray-900">AM/PM</span>
             </div>
             <button
@@ -2235,7 +2252,7 @@ function App() {
                 }`}
               >
                 <div className="mb-2 flex aspect-square items-center justify-center rounded-xl bg-gray-900">
-                  <span className="text-[11px] font-extrabold text-white">AM/PM</span>
+                  <Logo size={52} />
                 </div>
                 <p className="text-center text-[11.5px] font-medium text-gray-700">Бүгд</p>
               </button>
@@ -2370,7 +2387,7 @@ function App() {
             style={{ backgroundColor: '#EDEDED' }}
           >
             <div className="flex items-center gap-3">
-              <Logo />
+              <Logo size={36} />
               <span className="text-[13px] font-medium text-gray-900">AM/PM</span>
             </div>
             <p className="text-[12px] text-gray-500 text-center">
