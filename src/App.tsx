@@ -140,12 +140,21 @@ const LOCAL_ORDERS_KEY = 'ampm-orders'
 
 const DELIVERY_FEE = 6000
 
-// TODO: Жинхэнэ дансны мэдээллээ энд солино уу
 const BANK_INFO = {
-  bank: 'Хаан банк',
-  account: '5000 000 000',
-  holder: 'AM/PM',
+  bank: 'Голомт банк',
+  account: '3215162447',
+  iban: 'MN07 0015 0032 1516 2447',
+  holder: 'ЭЙ ЭМ ПИ ЭМ ДЭНТАЛ КЭЙР',
 }
+
+// Монголын банкуудын интернэт банкны нэвтрэлтийн хаягууд
+const MN_BANKS = [
+  { name: 'Хаан банк', url: 'https://e.khanbank.com/auth/login' },
+  { name: 'Голомт банк', url: 'https://egolomt.mn/' },
+  { name: 'Худалдаа хөгжлийн банк', url: 'https://online.tdbm.mn/' },
+  { name: 'Төрийн банк', url: 'https://ebank.statebank.mn/' },
+  { name: 'Хас банк', url: 'https://e.xacbank.mn/' },
+]
 
 type QpayData = {
   qr_image?: string
@@ -836,6 +845,13 @@ function CartDrawer({
   const [doneTotal, setDoneTotal] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState('')
+
+  const copy = (label: string, text: string) => {
+    navigator.clipboard?.writeText(text).catch(() => {})
+    setCopied(label)
+    setTimeout(() => setCopied(''), 1500)
+  }
 
   useEffect(() => {
     if (open) setStep('cart')
@@ -983,22 +999,57 @@ function CartDrawer({
               <CheckCircle2 size={44} className="text-green-500" />
               <p className="text-[16px] font-semibold text-gray-900">Захиалга амжилттай илгээгдлээ!</p>
               {doneNote && <p className="text-[12.5px] text-amber-600 max-w-[280px]">{doneNote}</p>}
-              <div className="mt-2 w-full max-w-[300px] rounded-2xl bg-white p-5 text-left">
+              <div className="mt-2 w-full max-w-[320px] rounded-2xl bg-white p-5 text-left">
                 <p className="mb-3 text-[13px] font-semibold text-gray-900">Төлбөр шилжүүлэх данс</p>
-                <div className="space-y-1.5 text-[13px] text-gray-700">
+                <div className="space-y-2 text-[13px] text-gray-700">
                   <p>🏦 {BANK_INFO.bank}</p>
-                  <p>
-                    Данс: <b>{BANK_INFO.account}</b>
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>
+                      Данс: <b>{BANK_INFO.account}</b>
+                    </span>
+                    <button
+                      onClick={() => copy('account', BANK_INFO.account)}
+                      className="shrink-0 rounded-full border border-gray-200 px-2.5 py-1 text-[10.5px] text-gray-500 hover:border-blue-400 hover:text-blue-600"
+                    >
+                      {copied === 'account' ? 'Хуулагдлаа ✓' : 'Хуулах'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-400">IBAN: {BANK_INFO.iban}</p>
                   <p>Хүлээн авагч: {BANK_INFO.holder}</p>
-                  <p>
-                    Дүн: <b className="text-blue-600">{fmt(doneTotal)}</b>
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>
+                      Дүн: <b className="text-blue-600">{fmt(doneTotal)}</b>
+                    </span>
+                    <button
+                      onClick={() => copy('amount', String(doneTotal))}
+                      className="shrink-0 rounded-full border border-gray-200 px-2.5 py-1 text-[10.5px] text-gray-500 hover:border-blue-400 hover:text-blue-600"
+                    >
+                      {copied === 'amount' ? 'Хуулагдлаа ✓' : 'Хуулах'}
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-3 border-t border-gray-100 pt-3 text-[11.5px] text-gray-500">
                   Гүйлгээний утга дээр өөрийн утасны дугаараа бичнэ үү. Төлбөр орж ирмэгц бид
                   холбогдож, хүргэлтийг баталгаажуулна.
                 </p>
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <p className="mb-2 text-[11.5px] font-semibold text-gray-700">
+                    Банкаа сонгоод шилжүүлэг хийнэ үү:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {MN_BANKS.map((b) => (
+                      <a
+                        key={b.name}
+                        href={b.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl border border-gray-200 px-3 py-2 text-center text-[11px] font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                      >
+                        {b.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
               </div>
               <button
                 onClick={onClose}
