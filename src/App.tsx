@@ -11,7 +11,6 @@ import {
   Star,
   Truck,
   ShieldCheck,
-  RotateCcw,
   Zap,
   Plus,
   Minus,
@@ -2705,7 +2704,7 @@ function App() {
         <Reveal className="max-w-xl mb-12">
           <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Яагаад AM/PM гэж?</p>
           <h2 className="text-[1.5rem] sm:text-[2rem] leading-[1.15] font-medium text-gray-900 tracking-tight">
-            Өдөр тутмын дадлаа тансаг зан үйл болгон хувиргаарай.
+            Шүдээ угаах өдөр тутмын дадлаа тансаг арчилгааны зан үйл болгоорой.
           </h2>
         </Reveal>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2729,7 +2728,7 @@ function App() {
         <div className="mx-auto max-w-5xl px-6 sm:px-10 space-y-24 sm:space-y-32">
           {/* A — Ялгаатай гялбаа */}
           <Reveal>
-            <GoldHeading line1="Ялгаатай гялбаа." line2="Мэдрэгдэх чанар." />
+            <GoldHeading line1="Ялгарах гялбаа." line2="Мэдрэгдэх чанар." />
             <div className="mt-6 flex justify-center">
               <span className="rounded-full border border-[#d9b483]/60 px-5 py-2 text-[11.5px] sm:text-[12.5px] text-[#e8cfa4] text-center">
                 Металл бүрэлт&nbsp;·&nbsp;Дээд зэрэглэлийн хайрцаг&nbsp;·&nbsp;Зөөлөн хялгас
@@ -2747,7 +2746,7 @@ function App() {
 
           {/* B — Чанарын баталгаа */}
           <Reveal>
-            <GoldHeading line1="Уран дархны сэтгэл." line2="Чанарын баталгаа." />
+            <GoldHeading line1="Уран дарханы нарийн хийц." line2="Чанарын бүрэн баталгаа." />
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-5">
               {qualityCards.map((c) => (
                 <div
@@ -2985,11 +2984,10 @@ function App() {
         )}
 
         <Reveal delay={200} className="mt-14">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
-              { icon: Truck, text: 'Улаанбаатарт 24 цагт хүргэнэ' },
-              { icon: RotateCcw, text: '30 хоногийн буцаалтын баталгаа' },
-              { icon: ShieldCheck, text: '1 жилийн премиум баталгаа' },
+              { icon: Truck, text: 'Улаанбаатар хотод 24 цагийн дотор хүргэнэ' },
+              { icon: ShieldCheck, text: '3 сарын баталгаатай' },
             ].map((t) => (
               <div
                 key={t.text}
