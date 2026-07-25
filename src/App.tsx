@@ -1246,7 +1246,7 @@ function LoginPage({ session }: { session: Session | null }) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (session) window.location.hash = '#profile'
+    if (session) window.location.hash = ''
   }, [session])
 
   const submit = async (e: React.FormEvent) => {
@@ -2289,6 +2289,7 @@ function App() {
   const [cart, setCart] = useState<CartItem[]>(() => loadJson<CartItem[]>(CART_KEY, []))
   const [cartOpen, setCartOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [viewProduct, setViewProduct] = useState<Product | null>(null)
   const [activeCat, setActiveCat] = useState('all')
   const [products, setProducts] = useState<Product[]>([])
@@ -2499,16 +2500,80 @@ function App() {
                 )}
               </a>
             )}
-            <a
-              href={session ? '#profile' : '#login'}
-              className="flex items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
-              aria-label={session ? 'Профайл' : 'Нэвтрэх'}
-            >
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.7">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
-              </svg>
-            </a>
+            {session ? (
+              <div className="relative">
+                <button
+                  onClick={() => setProfileMenuOpen((v) => !v)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-[14px] font-bold text-white hover:bg-blue-600 transition-colors"
+                  aria-label="Профайл цэс"
+                >
+                  {(profile?.name || session.user.email || '?').slice(0, 1).toUpperCase()}
+                </button>
+                {profileMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setProfileMenuOpen(false)} />
+                    <div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl bg-white p-2 shadow-xl border border-gray-100">
+                      <div className="border-b border-gray-100 px-3 py-2.5">
+                        <p className="truncate text-[13.5px] font-semibold text-gray-900">
+                          {profile?.name || 'Хэрэглэгч'}
+                        </p>
+                        <p className="truncate text-[11.5px] text-gray-500">{session.user.email}</p>
+                      </div>
+                      <a
+                        href="#profile"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50"
+                      >
+                        👤 Мэдээлэл засах
+                      </a>
+                      <a
+                        href="#profile"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Bell size={14} /> Мэдэгдэл
+                        </span>
+                        {unreadCount > 0 && (
+                          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                            {unreadCount}
+                          </span>
+                        )}
+                      </a>
+                      {isAdmin && (
+                        <a
+                          href="#admin"
+                          onClick={() => setProfileMenuOpen(false)}
+                          className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50"
+                        >
+                          ⚙️ Админ панель
+                        </a>
+                      )}
+                      <button
+                        onClick={() => {
+                          setProfileMenuOpen(false)
+                          supabase?.auth.signOut()
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] text-red-500 hover:bg-red-50"
+                      >
+                        <LogOut size={14} /> Гарах
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <a
+                href="#login"
+                className="flex items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
+                aria-label="Нэвтрэх"
+              >
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.7">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+                </svg>
+              </a>
+            )}
             <button
               onClick={() => setCartOpen(true)}
               className="relative flex items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
