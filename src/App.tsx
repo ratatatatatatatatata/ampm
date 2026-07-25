@@ -115,6 +115,26 @@ type Order = {
   paymentMethod?: string
 }
 
+type Profile = {
+  id: string
+  email?: string
+  name?: string
+  phone?: string
+  address?: string
+  created_at?: string
+}
+
+type Notif = {
+  id: string
+  user_id: string | null
+  title: string
+  body: string
+  read: boolean
+  created_at: string
+}
+
+const SEEN_NOTIFS_KEY = 'ampm-seen-notifs'
+
 const CART_KEY = 'ampm-cart'
 const LOCAL_PRODUCTS_KEY = 'ampm-admin-products'
 const LOCAL_ORDERS_KEY = 'ampm-orders'
@@ -794,6 +814,8 @@ function CartDrawer({
   setQty,
   removeItem,
   clearCart,
+  session,
+  profile,
 }: {
   open: boolean
   onClose: () => void
@@ -802,6 +824,8 @@ function CartDrawer({
   setQty: (id: string, qty: number) => void
   removeItem: (id: string) => void
   clearCart: () => void
+  session: Session | null
+  profile: Profile | null
 }) {
   const [step, setStep] = useState<'cart' | 'checkout' | 'done' | 'qpay'>('cart')
   const [contact, setContact] = useState('')
@@ -817,6 +841,14 @@ function CartDrawer({
   useEffect(() => {
     if (open) setStep('cart')
   }, [open])
+
+  // Профайлын мэдээллээр урьдчилан бөглөнө
+  useEffect(() => {
+    if (step === 'checkout' && profile) {
+      setContact((c) => c || profile.phone || profile.email || '')
+      setAddress((a) => a || profile.address || '')
+    }
+  }, [step, profile])
 
   const lines = cart
     .map((c) => {
@@ -1065,6 +1097,23 @@ function CartDrawer({
                 ))}
               </ul>
             )
+          ) : supabase && !session ? (
+            /* Захиалга өгөхийн тулд нэвтрэх шаардлагатай */
+            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+              <Logo size={56} />
+              <p className="text-[14.5px] font-semibold text-gray-900">Захиалга өгөхийн тулд нэвтэрнэ үү</p>
+              <p className="text-[12.5px] text-gray-500 max-w-[260px]">
+                Бүртгэлтэй бол мэдээлэл тань автоматаар бөглөгдөж, хямдрал урамшууллын мэдэгдэл авах
+                боломжтой.
+              </p>
+              <a
+                href="#login"
+                onClick={onClose}
+                className="rounded-full bg-blue-500 px-8 py-3 text-[14px] font-semibold text-white hover:bg-blue-600 transition-colors"
+              >
+                Нэвтрэх / Бүртгүүлэх
+              </a>
+            </div>
           ) : (
             /* -------- checkout form -------- */
             <form id="checkout-form" onSubmit={submitOrder} className="space-y-5">
@@ -1168,7 +1217,7 @@ function CartDrawer({
               >
                 Захиалах
               </button>
-            ) : (
+            ) : supabase && !session ? null : (
               <button
                 type="submit"
                 form="checkout-form"
@@ -1182,6 +1231,313 @@ function CartDrawer({
         )}
       </aside>
     </>
+  )
+}
+
+/* ---------------- Нэвтрэлт / Бүртгэл ---------------- */
+
+function LoginPage({ session }: { session: Session | null }) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (session) window.location.hash = '#profile'
+  }, [session])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!supabase) return
+    setBusy(true)
+    setError('')
+    setInfo('')
+    if (mode === 'login') {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      setBusy(false)
+      if (error) setError('Имэйл эсвэл нууц үг буруу байна.')
+      else window.location.hash = ''
+    } else {
+      const { data, error } = await supabase.auth.signUp({ email, password })
+      setBusy(false)
+      if (error) {
+        setError('Бүртгүүлэхэд алдаа гарлаа: ' + error.message)
+      } else if (data.session) {
+        await supabase
+          .from('profiles')
+          .upsert({ id: data.session.user.id, email, name: name.trim() || null })
+        window.location.hash = ''
+      } else {
+        setInfo('Бүртгэл үүслээ! Имэйл хаягаа шалгаж баталгаажуулсны дараа нэвтэрнэ үү.')
+      }
+    }
+  }
+
+  if (!supabase) {
+    return (
+      <div className="min-h-screen bg-[#f0f0ee] flex items-center justify-center px-6">
+        <p className="text-[13px] text-gray-500">Нэвтрэлт ажиллахын тулд Supabase тохируулга шаардлагатай.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f0f0ee] px-6 py-10">
+      <div className="mx-auto max-w-md">
+        <a
+          href="#"
+          className="inline-flex items-center gap-2 text-[13px] font-medium text-blue-500 hover:text-blue-600 transition-colors mb-8"
+        >
+          <ArrowLeft size={15} /> Дэлгүүр рүү буцах
+        </a>
+        <div className="rounded-3xl bg-white p-7 shadow-sm">
+          <div className="mb-6 flex flex-col items-center gap-2">
+            <Logo size={56} />
+            <h1 className="text-[17px] font-bold text-gray-900">AM/PM гишүүнчлэл</h1>
+          </div>
+          <div className="mb-6 grid grid-cols-2 rounded-full bg-gray-100 p-1">
+            {(['login', 'signup'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setMode(m)
+                  setError('')
+                  setInfo('')
+                }}
+                className={`rounded-full py-2 text-[13px] font-semibold transition-colors ${
+                  mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                {m === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
+              </button>
+            ))}
+          </div>
+          <form onSubmit={submit} className="flex flex-col gap-4">
+            {mode === 'signup' && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-medium text-gray-700">Нэр</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+                />
+              </label>
+            )}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">Имэйл</span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">Нууц үг</span>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
+            {error && <p className="text-[12.5px] text-red-500">{error}</p>}
+            {info && <p className="text-[12.5px] text-green-600">{info}</p>}
+            <button
+              type="submit"
+              disabled={busy}
+              className="mt-1 rounded-full bg-blue-500 py-3 text-[14px] font-semibold text-white hover:bg-blue-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {busy && <Loader2 size={15} className="animate-spin" />}
+              {mode === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- Профайл ---------------- */
+
+function ProfilePage({
+  session,
+  profile,
+  reloadProfile,
+  notifs,
+  markAllRead,
+  isAdmin,
+}: {
+  session: Session | null
+  profile: Profile | null
+  reloadProfile: () => Promise<void>
+  notifs: Notif[]
+  markAllRead: () => void
+  isAdmin: boolean
+}) {
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setName(profile?.name ?? '')
+    setPhone(profile?.phone ?? '')
+    setAddress(profile?.address ?? '')
+  }, [profile])
+
+  // Хуудас нээмэгц мэдэгдлүүдийг уншсан гэж тэмдэглэнэ
+  useEffect(() => {
+    markAllRead()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  if (!session || !supabase) {
+    return (
+      <div className="min-h-screen bg-[#f0f0ee] flex flex-col items-center justify-center gap-4 px-6">
+        <Logo size={56} />
+        <p className="text-[14px] text-gray-600">Профайл харахын тулд нэвтэрнэ үү.</p>
+        <a
+          href="#login"
+          className="rounded-full bg-blue-500 px-8 py-3 text-[14px] font-semibold text-white hover:bg-blue-600 transition-colors"
+        >
+          Нэвтрэх / Бүртгүүлэх
+        </a>
+      </div>
+    )
+  }
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    await supabase.from('profiles').upsert({
+      id: session.user.id,
+      email: session.user.email,
+      name: name.trim() || null,
+      phone: phone.trim() || null,
+      address: address.trim() || null,
+    })
+    await reloadProfile()
+    setBusy(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f0f0ee] px-6 py-10">
+      <div className="mx-auto max-w-2xl">
+        <div className="mb-8 flex items-center justify-between">
+          <a
+            href="#"
+            className="inline-flex items-center gap-2 text-[13px] font-medium text-blue-500 hover:text-blue-600 transition-colors"
+          >
+            <ArrowLeft size={15} /> Дэлгүүр рүү буцах
+          </a>
+          <button
+            onClick={() => supabase?.auth.signOut().then(() => (window.location.hash = ''))}
+            className="inline-flex items-center gap-2 text-[12.5px] text-gray-500 hover:text-red-500 transition-colors"
+          >
+            <LogOut size={14} /> Гарах
+          </button>
+        </div>
+
+        <div className="mb-6 flex items-center gap-4">
+          <Logo size={52} />
+          <div>
+            <h1 className="text-[1.3rem] font-bold text-gray-900">{profile?.name || 'Миний профайл'}</h1>
+            <p className="text-[12.5px] text-gray-500">{session.user.email}</p>
+          </div>
+          {isAdmin && (
+            <a
+              href="#admin"
+              className="ml-auto rounded-full bg-gray-900 px-4 py-2 text-[12px] font-semibold text-white"
+            >
+              Админ панель
+            </a>
+          )}
+        </div>
+
+        {/* Мэдээлэл засах */}
+        <form onSubmit={save} className="mb-6 rounded-3xl bg-white p-6 sm:p-7">
+          <h2 className="mb-4 text-[15px] font-semibold text-gray-900">Миний мэдээлэл</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">Нэр</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">Утас</span>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                inputMode="tel"
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <span className="text-[12px] font-medium text-gray-700">Гэрийн хаяг</span>
+              <textarea
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                rows={2}
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400 resize-none"
+              />
+            </label>
+          </div>
+          {saved && <p className="mt-3 text-[12.5px] text-green-600">Хадгалагдлаа ✓</p>}
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-5 rounded-full bg-blue-500 px-7 py-2.5 text-[13px] font-semibold text-white hover:bg-blue-600 transition-colors disabled:opacity-60 inline-flex items-center gap-2"
+          >
+            {busy && <Loader2 size={14} className="animate-spin" />} Хадгалах
+          </button>
+          <p className="mt-3 text-[11.5px] text-gray-400">
+            Энэ мэдээлэл захиалга өгөхөд автоматаар бөглөгдөнө.
+          </p>
+        </form>
+
+        {/* Мэдэгдлүүд */}
+        <div className="rounded-3xl bg-white p-6 sm:p-7">
+          <h2 className="mb-4 flex items-center gap-2 text-[15px] font-semibold text-gray-900">
+            <Bell size={16} className="text-blue-500" /> Мэдэгдэл ({notifs.length})
+          </h2>
+          {notifs.length === 0 ? (
+            <p className="text-[13px] text-gray-500">Одоогоор мэдэгдэл алга.</p>
+          ) : (
+            <ul className="space-y-3">
+              {notifs.map((n) => (
+                <li key={n.id} className="rounded-2xl bg-gray-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-[13.5px] font-semibold text-gray-900">
+                      {n.user_id === null && '📢 '}
+                      {n.title}
+                    </p>
+                    <span className="shrink-0 text-[10.5px] text-gray-400">
+                      {new Date(n.created_at).toLocaleDateString('mn-MN')}
+                    </span>
+                  </div>
+                  {n.body && <p className="mt-1 text-[12.5px] leading-relaxed text-gray-600">{n.body}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1252,9 +1608,16 @@ function AdminPanel({
   reloadProducts: () => Promise<void>
   session: Session | null
 }) {
-  const [tab, setTab] = useState<'orders' | 'products'>('orders')
+  const [tab, setTab] = useState<'orders' | 'products' | 'users'>('orders')
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersError, setOrdersError] = useState('')
+  const [users, setUsers] = useState<Profile[]>([])
+  const [usersError, setUsersError] = useState('')
+  const [notifTarget, setNotifTarget] = useState<Profile | 'all' | null>(null)
+  const [notifTitle, setNotifTitle] = useState('')
+  const [notifBody, setNotifBody] = useState('')
+  const [notifSent, setNotifSent] = useState(false)
+  const [notifBusy, setNotifBusy] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [notifOn, setNotifOn] = useState(
     typeof Notification !== 'undefined' && Notification.permission === 'granted',
@@ -1320,6 +1683,48 @@ function AdminPanel({
     if (usingDb && !session) return
     loadOrders()
   }, [loadOrders, usingDb, session])
+
+  // Хэрэглэгчдийн жагсаалт
+  useEffect(() => {
+    if (!supabase || !session || tab !== 'users') return
+    supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error)
+          setUsersError(
+            'Хэрэглэгчид ачаалагдсангүй — supabase/users-notifications.sql-ийг ажиллуулсан эсэхээ шалгана уу. (' +
+              error.message +
+              ')',
+          )
+        else {
+          setUsersError('')
+          setUsers((data ?? []) as Profile[])
+        }
+      })
+  }, [tab, session])
+
+  const sendNotif = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!supabase || !notifTarget || !notifTitle.trim()) return
+    setNotifBusy(true)
+    const { error } = await supabase.from('notifications').insert({
+      user_id: notifTarget === 'all' ? null : notifTarget.id,
+      title: notifTitle.trim(),
+      body: notifBody.trim(),
+    })
+    setNotifBusy(false)
+    if (!error) {
+      setNotifTitle('')
+      setNotifBody('')
+      setNotifTarget(null)
+      setNotifSent(true)
+      setTimeout(() => setNotifSent(false), 3000)
+    } else {
+      setUsersError('Мэдэгдэл илгээхэд алдаа: ' + error.message)
+    }
+  }
 
   // Realtime: шинэ захиалга ирэхэд шууд мэдэгдэнэ
   useEffect(() => {
@@ -1549,9 +1954,96 @@ function AdminPanel({
           >
             <Package size={14} /> Бүтээгдэхүүн ({products.length})
           </button>
+          <button
+            onClick={() => setTab('users')}
+            className={`inline-flex items-center gap-2 text-[13px] font-medium rounded-full px-5 py-2.5 transition-colors ${
+              tab === 'users' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Bell size={14} /> Хэрэглэгчид
+          </button>
         </div>
 
-        {tab === 'orders' ? (
+        {tab === 'users' ? (
+          <div className="rounded-3xl p-6 sm:p-8" style={{ backgroundColor: '#EDEDED' }}>
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-gray-900">Хэрэглэгчид ({users.length})</h2>
+              <button
+                onClick={() => setNotifTarget('all')}
+                className="inline-flex items-center gap-2 text-[12px] font-medium text-white bg-blue-500 rounded-full px-4 py-2 hover:bg-blue-600 transition-colors"
+              >
+                <Bell size={13} /> Бүгдэд мэдэгдэл илгээх
+              </button>
+            </div>
+            {usersError && <p className="mb-4 text-[12.5px] text-red-500">{usersError}</p>}
+            {notifSent && <p className="mb-4 text-[12.5px] text-green-600">Мэдэгдэл илгээгдлээ ✓</p>}
+
+            {/* Мэдэгдэл илгээх маягт */}
+            {notifTarget && (
+              <form onSubmit={sendNotif} className="mb-6 rounded-2xl bg-white p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-[13px] font-semibold text-gray-900">
+                    {notifTarget === 'all'
+                      ? '📢 Бүх хэрэглэгчид илгээх'
+                      : `Хүлээн авагч: ${notifTarget.name || notifTarget.email || notifTarget.phone}`}
+                  </p>
+                  <button type="button" onClick={() => setNotifTarget(null)} className="text-gray-400 hover:text-gray-700">
+                    <X size={15} />
+                  </button>
+                </div>
+                <input
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                  placeholder="Гарчиг (Ж: 20% хямдрал эхэллээ!)"
+                  className="mb-3 w-full rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+                />
+                <textarea
+                  value={notifBody}
+                  onChange={(e) => setNotifBody(e.target.value)}
+                  rows={3}
+                  placeholder="Дэлгэрэнгүй мэдээлэл, урамшууллын нөхцөл…"
+                  className="mb-3 w-full rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400 resize-none"
+                />
+                <button
+                  type="submit"
+                  disabled={notifBusy || !notifTitle.trim()}
+                  className="inline-flex items-center gap-2 rounded-full bg-blue-500 px-6 py-2.5 text-[13px] font-semibold text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
+                >
+                  {notifBusy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />} Илгээх
+                </button>
+              </form>
+            )}
+
+            {users.length === 0 && !usersError ? (
+              <p className="text-[13px] text-gray-500">Одоогоор бүртгэлтэй хэрэглэгч алга.</p>
+            ) : (
+              <ul className="space-y-3">
+                {users.map((u) => (
+                  <li key={u.id} className="flex items-center gap-4 bg-white rounded-2xl p-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[14px] font-bold text-gray-600">
+                      {(u.name || u.email || '?').slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px] font-semibold text-gray-900">
+                        {u.name || 'Нэргүй хэрэглэгч'}
+                      </p>
+                      <p className="truncate text-[12px] text-gray-500">
+                        {[u.email, u.phone].filter(Boolean).join(' · ') || '—'}
+                      </p>
+                      {u.address && <p className="truncate text-[11.5px] text-gray-400">📍 {u.address}</p>}
+                    </div>
+                    <button
+                      onClick={() => setNotifTarget(u)}
+                      className="shrink-0 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-600 border border-blue-300 rounded-full px-3.5 py-1.5 hover:bg-blue-50 transition-colors"
+                    >
+                      <Bell size={12} /> Мэдэгдэл
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : tab === 'orders' ? (
           <div className="rounded-3xl p-6 sm:p-8" style={{ backgroundColor: '#EDEDED' }}>
             {ordersError && <p className="text-[12.5px] text-red-500 mb-4">{ordersError}</p>}
             {orders.length === 0 ? (
@@ -1800,7 +2292,50 @@ function App() {
   const [loadError, setLoadError] = useState('')
   const [route, setRoute] = useState(window.location.hash)
   const [session, setSession] = useState<Session | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [notifs, setNotifs] = useState<Notif[]>([])
+  const [seenIds, setSeenIds] = useState<string[]>(() => loadJson<string[]>(SEEN_NOTIFS_KEY, []))
   const wide = useWideViewport()
+
+  const unreadCount = notifs.filter((n) => (n.user_id ? !n.read : !seenIds.includes(n.id))).length
+
+  const reloadProfile = useCallback(async () => {
+    if (!supabase) return
+    const { data: s } = await supabase.auth.getSession()
+    const uid = s.session?.user.id
+    if (!uid) return
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
+    if (!error) {
+      if (data) setProfile(data as Profile)
+      else {
+        await supabase.from('profiles').upsert({ id: uid, email: s.session?.user.email })
+        setProfile({ id: uid, email: s.session?.user.email })
+      }
+    }
+  }, [])
+
+  const reloadNotifs = useCallback(async () => {
+    if (!supabase) return
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (!error) setNotifs((data ?? []) as Notif[])
+  }, [])
+
+  const markAllRead = useCallback(() => {
+    if (!supabase || !session) return
+    const uid = session.user.id
+    supabase.from('notifications').update({ read: true }).eq('user_id', uid).eq('read', false)
+    setNotifs((prev) => prev.map((n) => (n.user_id === uid ? { ...n, read: true } : n)))
+    setSeenIds(() => {
+      const next = [...new Set([...loadJson<string[]>(SEEN_NOTIFS_KEY, []), ...notifs.map((n) => n.id)])]
+      saveJson(SEEN_NOTIFS_KEY, next)
+      return next
+    })
+  }, [session, notifs])
 
   useEffect(() => {
     const onHash = () => setRoute(window.location.hash)
@@ -1838,6 +2373,36 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Нэвтэрсэн хэрэглэгчийн эрх, профайл, мэдэгдэл
+  useEffect(() => {
+    if (!supabase || !session) {
+      setIsAdmin(false)
+      setProfile(null)
+      setNotifs([])
+      return
+    }
+    supabase
+      .from('admins')
+      .select('user_id')
+      .eq('user_id', session.user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        // admins хүснэгт үүсээгүй бол хуучин горим: нэвтэрсэн хүн админ
+        setIsAdmin(error ? true : !!data)
+      })
+    reloadProfile()
+    reloadNotifs()
+    const ch = supabase
+      .channel('user-notifs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (p) => {
+        setNotifs((prev) => [p.new as Notif, ...prev])
+      })
+      .subscribe()
+    return () => {
+      supabase?.removeChannel(ch)
+    }
+  }, [session, reloadProfile, reloadNotifs])
+
   const addToCart = (id: string) => {
     setCart((prev) => {
       const found = prev.find((c) => c.id === id)
@@ -1858,7 +2423,35 @@ function App() {
   const filtered = activeCat === 'all' ? products : products.filter((p) => p.category === activeCat)
   const featured = products.filter((p) => p.badge)
 
+  if (route === '#login') {
+    return <LoginPage session={session} />
+  }
+
+  if (route === '#profile') {
+    return (
+      <ProfilePage
+        session={session}
+        profile={profile}
+        reloadProfile={reloadProfile}
+        notifs={notifs}
+        markAllRead={markAllRead}
+        isAdmin={isAdmin}
+      />
+    )
+  }
+
   if (route === '#admin') {
+    if (supabase && session && !isAdmin) {
+      return (
+        <div className="min-h-screen bg-[#f0f0ee] flex flex-col items-center justify-center gap-4 px-6">
+          <Logo size={56} />
+          <p className="text-[14px] text-gray-600">Танд админ эрх байхгүй байна.</p>
+          <a href="#" className="text-[13px] text-blue-500 underline underline-offset-4">
+            Дэлгүүр рүү буцах
+          </a>
+        </div>
+      )
+    }
     return <AdminPanel products={products} reloadProducts={reloadProducts} session={session} />
   }
 
@@ -1888,6 +2481,30 @@ function App() {
           </div>
 
           <div className="ml-auto lg:ml-0 flex items-center gap-1.5">
+            {session && (
+              <a
+                href="#profile"
+                className="relative flex items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
+                aria-label="Мэдэгдэл"
+              >
+                <Bell size={18} className="text-gray-700" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold">
+                    {unreadCount}
+                  </span>
+                )}
+              </a>
+            )}
+            <a
+              href={session ? '#profile' : '#login'}
+              className="flex items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
+              aria-label={session ? 'Профайл' : 'Нэвтрэх'}
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.7">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+              </svg>
+            </a>
             <button
               onClick={() => setCartOpen(true)}
               className="relative flex items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
@@ -1951,6 +2568,13 @@ function App() {
             >
               <ShoppingBag size={16} /> Сагс харах {cartCount > 0 && `(${cartCount})`}
             </button>
+            <a
+              href={session ? '#profile' : '#login'}
+              onClick={() => setMenuOpen(false)}
+              className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-gray-300 text-gray-800 text-[14px] font-semibold py-3.5"
+            >
+              {session ? '👤 Миний профайл' : 'Нэвтрэх / Бүртгүүлэх'}
+            </a>
           </nav>
           <p className="pb-8 text-center text-[11.5px] text-gray-400">Өглөөний цэнгэг. Оройн арчилгаа.</p>
         </div>
@@ -2439,6 +3063,8 @@ function App() {
         setQty={setQty}
         removeItem={(id) => setCart((prev) => prev.filter((c) => c.id !== id))}
         clearCart={() => setCart([])}
+        session={session}
+        profile={profile}
       />
     </div>
   )
