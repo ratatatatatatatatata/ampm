@@ -676,6 +676,48 @@ function AddressMap({ onPick }: { onPick: (addr: string, lat: number, lng: numbe
   )
 }
 
+/* ---------------- aident.mn маягийн бүтээгдэхүүний карт ---------------- */
+
+function ShopCard({ p, onView, onAdd }: { p: Product; onView: () => void; onAdd: () => void }) {
+  return (
+    <div
+      onClick={onView}
+      className="group relative flex cursor-pointer flex-col rounded-2xl bg-white p-3 transition-shadow hover:shadow-md"
+    >
+      <div className="relative mb-2.5 aspect-square overflow-hidden rounded-xl bg-gray-50">
+        {p.image ? (
+          <img
+            src={p.image}
+            alt={p.name}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <AutoVideo src="/video/ampm-hero.mp4" className="h-full w-full object-cover" />
+        )}
+        {p.badge && (
+          <span className="absolute left-2 top-2 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-bold text-white">
+            {p.badge}
+          </span>
+        )}
+      </div>
+      <p className="line-clamp-2 text-[12.5px] leading-snug text-gray-700">{p.name}</p>
+      <div className="mt-auto flex items-end justify-between pt-1.5">
+        <p className="text-[14px] font-bold text-gray-900">{fmt(p.price)}</p>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAdd()
+          }}
+          aria-label="Сагсанд нэмэх"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white transition-colors hover:bg-blue-600"
+        >
+          <Plus size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /* ---------------- Cart drawer + checkout ---------------- */
 
 function CartDrawer({
@@ -1610,59 +1652,59 @@ function App() {
   return (
     <div className="relative min-h-screen bg-[#f0f0ee]">
       {/* ---------- Fixed navbar ---------- */}
-      <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-center pt-4 sm:pt-6 px-4 sm:px-8 gap-2 sm:gap-3">
-        <a
-          href="#"
-          className="flex items-center gap-2 sm:gap-2.5 rounded-full pl-1.5 pr-3.5 sm:pr-5 py-1.5 shrink-0 shadow-sm"
-          style={{ backgroundColor: '#EDEDED' }}
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
-            <Logo />
-          </span>
-          <span className="text-[13px] sm:text-[14px] font-bold tracking-wide text-gray-900">AM/PM</span>
-        </a>
-        <div
-          className="hidden sm:flex items-center gap-10 rounded-xl px-8 py-3 shadow-sm"
-          style={{ backgroundColor: '#EDEDED' }}
-        >
-          {navLinks.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              className="text-[14px] font-medium text-gray-700 hover:text-gray-900 transition-colors duration-200"
-            >
-              {link.label}
-            </a>
-          ))}
-        </div>
-        <button
-          onClick={() => setCartOpen(true)}
-          className="relative flex items-center justify-center rounded-full w-10 h-10 sm:w-11 sm:h-11 shrink-0 shadow-sm hover:shadow transition-shadow"
-          style={{ backgroundColor: '#EDEDED' }}
-          aria-label="Сагс"
-        >
-          <ShoppingBag size={17} className="text-gray-700" />
-          {cartCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-white text-[10px] font-semibold">
-              {cartCount}
+      {/* aident.mn маягийн цагаан header бар */}
+      <nav className="fixed top-0 inset-x-0 z-50 px-3 sm:px-6 pt-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-md">
+          <a href="#" className="flex items-center gap-2.5 shrink-0">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900">
+              <span className="text-[8.5px] font-extrabold tracking-tight text-white">AM/PM</span>
             </span>
-          )}
-        </button>
-        <button
-          onClick={() => setMenuOpen(true)}
-          className="flex sm:hidden items-center justify-center rounded-full w-10 h-10 shrink-0 shadow-sm"
-          style={{ backgroundColor: '#EDEDED' }}
-          aria-label="Цэс"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8">
-            <path d="M4 7h16M4 12h16M4 17h16" />
-          </svg>
-        </button>
+            <span className="text-[14px] sm:text-[15px] font-bold text-gray-900 whitespace-nowrap">
+              AM/PM шүдний сойз
+            </span>
+          </a>
+
+          <div className="hidden lg:flex items-center gap-7 mx-auto">
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="text-[13.5px] font-medium text-gray-600 hover:text-gray-900 transition-colors duration-200"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+
+          <div className="ml-auto lg:ml-0 flex items-center gap-1.5">
+            <button
+              onClick={() => setCartOpen(true)}
+              className="relative flex items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
+              aria-label="Сагс"
+            >
+              <ShoppingBag size={19} className="text-gray-700" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-white text-[10px] font-semibold">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="flex lg:hidden items-center justify-center rounded-full w-10 h-10 hover:bg-gray-100 transition-colors"
+              aria-label="Цэс"
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </nav>
 
       {/* ---------- Mobile fullscreen menu ---------- */}
       {menuOpen && (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-[#f0f0ee] sm:hidden">
+        <div className="fixed inset-0 z-[100] flex flex-col bg-[#f0f0ee] lg:hidden">
           <div className="flex items-center justify-between px-5 py-5">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center justify-center rounded-full w-10 h-10" style={{ backgroundColor: '#EDEDED' }}>
@@ -1947,17 +1989,8 @@ function App() {
         </div>
       </section>
 
-      {/* ---------- Products ---------- */}
-      <section id="products" className="py-20 sm:py-28 px-6 sm:px-12 md:px-20 lg:px-28">
-        <Reveal className="flex items-end justify-between mb-12">
-          <div>
-            <p className="text-[11.5px] font-medium text-blue-500 uppercase tracking-widest mb-3">Дэлгүүр</p>
-            <h2 className="text-[1.5rem] sm:text-[2rem] leading-[1.15] font-medium text-gray-900 tracking-tight">
-              Цуглуулгаас сонгоорой.
-            </h2>
-          </div>
-        </Reveal>
-
+      {/* ---------- Products: aident.mn маягийн дэлгүүр ---------- */}
+      <section id="products" className="mx-auto max-w-6xl px-4 sm:px-8 py-16 sm:py-24">
         {loading && (
           <div className="flex items-center gap-3 text-gray-500 text-[13px] mb-8">
             <Loader2 size={16} className="animate-spin" /> Бүтээгдэхүүн ачаалж байна…
@@ -1972,120 +2005,82 @@ function App() {
           </div>
         )}
         {!loading && !loadError && products.length === 0 && (
-          <div className="rounded-3xl p-10 text-center" style={{ backgroundColor: '#EDEDED' }}>
+          <div className="rounded-3xl bg-white p-10 text-center">
             <Package size={30} className="mx-auto text-gray-400 mb-3" />
             <p className="text-[14px] text-gray-600">Бүтээгдэхүүн удахгүй нэмэгдэнэ.</p>
           </div>
         )}
 
-        {/* Ангилал — aident.mn маягийн шүүлтүүр */}
+        {/* Ангилал — зурагтай картууд */}
         {categories.length > 0 && (
-          <div className="mb-8 flex gap-2.5 overflow-x-auto pb-2">
-            {['all', ...categories].map((c) => (
+          <div className="mb-14">
+            <h2 className="mb-6 text-center text-[1.35rem] font-bold text-gray-900">Ангилал</h2>
+            <div className="flex gap-3 overflow-x-auto pb-3">
               <button
-                key={c}
-                onClick={() => setActiveCat(c)}
-                className={`shrink-0 rounded-full px-5 py-2.5 text-[12.5px] font-medium transition-colors ${
-                  activeCat === c
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-400 hover:text-gray-900'
+                onClick={() => setActiveCat('all')}
+                className={`w-[110px] sm:w-[130px] shrink-0 rounded-2xl bg-white p-2.5 transition-shadow hover:shadow-md ${
+                  activeCat === 'all' ? 'ring-2 ring-gray-900' : ''
                 }`}
               >
-                {c === 'all' ? 'Бүгд' : c}
+                <div className="mb-2 flex aspect-square items-center justify-center rounded-xl bg-gray-900">
+                  <span className="text-[11px] font-extrabold text-white">AM/PM</span>
+                </div>
+                <p className="text-center text-[11.5px] font-medium text-gray-700">Бүгд</p>
               </button>
-            ))}
+              {categories.map((c) => {
+                const rep = products.find((p) => p.category === c)
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setActiveCat(c)}
+                    className={`w-[110px] sm:w-[130px] shrink-0 rounded-2xl bg-white p-2.5 transition-shadow hover:shadow-md ${
+                      activeCat === c ? 'ring-2 ring-gray-900' : ''
+                    }`}
+                  >
+                    <div className="mb-2 aspect-square overflow-hidden rounded-xl bg-gray-50">
+                      {rep?.image ? (
+                        <img src={rep.image} alt={c} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Package size={22} className="text-gray-300" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="line-clamp-2 text-center text-[11.5px] font-medium leading-snug text-gray-700">
+                      {c}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
-        {/* Онцлох — badge-тэй бүтээгдэхүүний мөр */}
+        {/* Онцлох */}
         {activeCat === 'all' && featured.length > 0 && (
-          <div className="mb-12">
-            <h3 className="mb-4 flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-              <Star size={15} className="text-blue-500 fill-blue-500" /> Онцлох
-            </h3>
-            <div className="flex gap-4 overflow-x-auto pb-3">
+          <div className="mb-14">
+            <h2 className="mb-6 text-center text-[1.35rem] font-bold text-gray-900">Онцлох</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {featured.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setViewProduct(p)}
-                  className="group w-[210px] shrink-0 overflow-hidden rounded-2xl text-left transition-all hover:-translate-y-1 hover:shadow-lg"
-                  style={{ backgroundColor: '#EDEDED' }}
-                >
-                  <div className="relative aspect-[4/3] overflow-hidden">
-                    {p.image ? (
-                      <img src={p.image} alt={p.name} className="absolute inset-0 h-full w-full object-cover" />
-                    ) : (
-                      <AutoVideo src="/video/ampm-hero.mp4" className="absolute inset-0 h-full w-full object-cover" />
-                    )}
-                    {p.badge && (
-                      <span className="absolute left-2.5 top-2.5 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                        {p.badge}
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-3.5">
-                    <p className="truncate text-[13px] font-medium text-gray-900">{p.name}</p>
-                    <p className="mt-1 text-[13.5px] font-bold text-gray-900">{fmt(p.price)}</p>
-                  </div>
-                </button>
+                <ShopCard key={p.id} p={p} onView={() => setViewProduct(p)} onAdd={() => addToCart(p.id)} />
               ))}
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((p, i) => (
-            <Reveal key={p.id} delay={(i % 3) * 120}>
-              <div
-                className="group relative rounded-3xl overflow-hidden h-full flex flex-col hover:-translate-y-1.5 hover:shadow-xl transition-all duration-300"
-                style={{ backgroundColor: '#EDEDED' }}
-              >
-                {p.badge && (
-                  <span className="absolute top-4 left-4 z-10 text-[10.5px] font-semibold text-white bg-blue-500 rounded-full px-2.5 py-1">
-                    {p.badge}
-                  </span>
-                )}
-                <button
-                  onClick={() => setViewProduct(p)}
-                  className="relative aspect-[4/3] overflow-hidden w-full text-left cursor-zoom-in"
-                  aria-label={`${p.name} — томруулж харах`}
-                >
-                  {p.image ? (
-                    <img
-                      src={p.image}
-                      alt={p.name}
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <AutoVideo
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      src="/video/ampm-hero.mp4"
-                    />
-                  )}
-                </button>
-                <div className="p-6 flex flex-col flex-1">
-                  {p.category && (
-                    <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-blue-500">
-                      {p.category}
-                    </p>
-                  )}
-                  <h3 className="text-[15px] font-medium text-gray-900 mb-1.5">{p.name}</h3>
-                  <p className="text-[12.5px] text-gray-500 mb-4">{p.desc}</p>
-                  <div className="mt-auto flex items-center justify-between">
-                    <span className="text-[15px] font-semibold text-gray-900">{fmt(p.price)}</span>
-                    <button
-                      onClick={() => addToCart(p.id)}
-                      className="inline-flex items-center gap-2 text-[12.5px] font-medium text-blue-500 border border-blue-400 rounded-full px-4 py-2 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all duration-200"
-                    >
-                      <ShoppingBag size={14} />
-                      Сагсанд нэмэх
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
+        {/* Бүх бүтээгдэхүүн / сонгосон ангилал */}
+        {products.length > 0 && (
+          <div>
+            <h2 className="mb-6 text-center text-[1.35rem] font-bold text-gray-900">
+              {activeCat === 'all' ? 'Бүх бүтээгдэхүүн' : activeCat}
+            </h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {filtered.map((p) => (
+                <ShopCard key={p.id} p={p} onView={() => setViewProduct(p)} onAdd={() => addToCart(p.id)} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <Reveal delay={200} className="mt-14">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
