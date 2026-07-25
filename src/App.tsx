@@ -1751,7 +1751,7 @@ function App() {
               <img
                 src="/img/pdf10-2.jpg"
                 alt="AM/PM мөнгөлөг ба ягаан алт сойз"
-                className="w-full max-h-[560px] object-cover object-center"
+                className="w-full h-[480px] sm:h-[640px] object-contain"
                 loading="lazy"
               />
             </div>
@@ -1862,7 +1862,7 @@ function App() {
                 <img
                   src="/img/pdf10-1.jpg"
                   alt="AM/PM ягаан алт сойз"
-                  className="w-full max-h-[380px] sm:max-h-[520px] object-cover"
+                  className="w-full h-[420px] sm:h-[560px] object-contain"
                   loading="lazy"
                 />
               </div>
@@ -1885,11 +1885,11 @@ function App() {
 
           {/* F — Амьдралын хэв маяг */}
           <Reveal>
-            <div className="relative overflow-hidden rounded-3xl">
+            <div className="relative mx-auto max-w-2xl overflow-hidden rounded-3xl">
               <img
                 src="/img/pdf09-3.jpg"
                 alt="AM/PM хэрэглэгч"
-                className="w-full max-h-[480px] object-cover object-top"
+                className="w-full h-auto"
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
