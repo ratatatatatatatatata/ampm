@@ -1271,7 +1271,10 @@ function LoginPage({ session }: { session: Session | null }) {
           .upsert({ id: data.session.user.id, email, name: name.trim() || null })
         window.location.hash = ''
       } else {
-        setInfo('Бүртгэл үүслээ! Имэйл хаягаа шалгаж баталгаажуулсны дараа нэвтэрнэ үү.')
+        setInfo('Бүртгэл амжилттай үүслээ! Нүүр хуудас руу шилжиж байна…')
+        setTimeout(() => {
+          window.location.hash = ''
+        }, 2000)
       }
     }
   }
