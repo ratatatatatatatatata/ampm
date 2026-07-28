@@ -1412,6 +1412,27 @@ function LoginPage({ session }: { session: Session | null }) {
               {busy && <Loader2 size={15} className="animate-spin" />}
               {mode === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
             </button>
+            {mode === 'login' && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!supabase) return
+                  if (!email.trim()) {
+                    setError('Эхлээд имэйл хаягаа бичээд "Нууц үг мартсан" дарна уу.')
+                    return
+                  }
+                  setError('')
+                  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                    redirectTo: window.location.origin + '/#profile',
+                  })
+                  if (error) setError('Сэргээх линк илгээхэд алдаа гарлаа: ' + error.message)
+                  else setInfo('Нууц үг сэргээх линк имэйл рүү тань илгээгдлээ. Имэйлээ шалгана уу.')
+                }}
+                className="text-center text-[12.5px] text-gray-500 underline underline-offset-4 hover:text-blue-500"
+              >
+                Нууц үг мартсан?
+              </button>
+            )}
           </form>
         </div>
       </div>
@@ -1441,12 +1462,39 @@ function ProfilePage({
   const [address, setAddress] = useState('')
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [newPass, setNewPass] = useState('')
+  const [newPass2, setNewPass2] = useState('')
+  const [passMsg, setPassMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [passBusy, setPassBusy] = useState(false)
 
   useEffect(() => {
     setName(profile?.name ?? '')
     setPhone(profile?.phone ?? '')
     setAddress(profile?.address ?? '')
   }, [profile])
+
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!supabase) return
+    if (newPass.length < 6) {
+      setPassMsg({ ok: false, text: 'Нууц үг 6-аас доошгүй тэмдэгт байх ёстой.' })
+      return
+    }
+    if (newPass !== newPass2) {
+      setPassMsg({ ok: false, text: 'Нууц үг хоорондоо таарахгүй байна.' })
+      return
+    }
+    setPassBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: newPass })
+    setPassBusy(false)
+    if (error) setPassMsg({ ok: false, text: 'Алдаа гарлаа: ' + error.message })
+    else {
+      setPassMsg({ ok: true, text: 'Нууц үг амжилттай солигдлоо ✓' })
+      setNewPass('')
+      setNewPass2('')
+    }
+    setTimeout(() => setPassMsg(null), 4000)
+  }
 
   // Хуудас нээмэгц мэдэгдлүүдийг уншсан гэж тэмдэглэнэ
   useEffect(() => {
@@ -1562,6 +1610,47 @@ function ProfilePage({
           <p className="mt-3 text-[11.5px] text-gray-400">
             Энэ мэдээлэл захиалга өгөхөд автоматаар бөглөгдөнө.
           </p>
+        </form>
+
+        {/* Нууц үг солих */}
+        <form onSubmit={changePassword} className="mb-6 rounded-3xl bg-white p-6 sm:p-7">
+          <h2 className="mb-4 text-[15px] font-semibold text-gray-900">🔒 Нууц үг солих</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">Шинэ нууц үг</span>
+              <input
+                type="password"
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+                minLength={6}
+                autoComplete="new-password"
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">Шинэ нууц үг давтах</span>
+              <input
+                type="password"
+                value={newPass2}
+                onChange={(e) => setNewPass2(e.target.value)}
+                minLength={6}
+                autoComplete="new-password"
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
+          </div>
+          {passMsg && (
+            <p className={`mt-3 text-[12.5px] ${passMsg.ok ? 'text-green-600' : 'text-red-500'}`}>
+              {passMsg.text}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={passBusy || !newPass}
+            className="mt-5 rounded-full bg-gray-900 px-7 py-2.5 text-[13px] font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+          >
+            {passBusy && <Loader2 size={14} className="animate-spin" />} Нууц үг солих
+          </button>
         </form>
 
         {/* Мэдэгдлүүд */}
