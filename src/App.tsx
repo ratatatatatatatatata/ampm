@@ -1100,7 +1100,16 @@ function CartDrawer({
               <div className="h-full flex flex-col items-center justify-center text-center gap-3">
                 <ShoppingBag size={38} className="text-gray-300" />
                 <p className="text-[13.5px] text-gray-500">Таны сагс хоосон байна.</p>
-                <button onClick={onClose} className="text-[13px] text-blue-500 underline underline-offset-4">
+                <button
+                  onClick={() => {
+                    onClose()
+                    setTimeout(
+                      () => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }),
+                      150,
+                    )
+                  }}
+                  className="text-[13px] text-blue-500 underline underline-offset-4"
+                >
                   Бүтээгдэхүүн үзэх
                 </button>
               </div>
@@ -1294,6 +1303,10 @@ function LoginPage({ session }: { session: Session | null }) {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotMsg, setForgotMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [forgotBusy, setForgotBusy] = useState(false)
 
   useEffect(() => {
     if (session) window.location.hash = ''
@@ -1415,18 +1428,10 @@ function LoginPage({ session }: { session: Session | null }) {
             {mode === 'login' && (
               <button
                 type="button"
-                onClick={async () => {
-                  if (!supabase) return
-                  if (!email.trim()) {
-                    setError('Эхлээд имэйл хаягаа бичээд "Нууц үг мартсан" дарна уу.')
-                    return
-                  }
-                  setError('')
-                  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-                    redirectTo: window.location.origin + '/#profile',
-                  })
-                  if (error) setError('Сэргээх линк илгээхэд алдаа гарлаа: ' + error.message)
-                  else setInfo('Нууц үг сэргээх линк имэйл рүү тань илгээгдлээ. Имэйлээ шалгана уу.')
+                onClick={() => {
+                  setForgotEmail(email)
+                  setForgotMsg(null)
+                  setForgotOpen(true)
                 }}
                 className="text-center text-[12.5px] text-gray-500 underline underline-offset-4 hover:text-blue-500"
               >
@@ -1435,6 +1440,63 @@ function LoginPage({ session }: { session: Session | null }) {
             )}
           </form>
         </div>
+
+        {/* Нууц үг сэргээх цонх */}
+        {forgotOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setForgotOpen(false)} />
+            <div className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+              <button
+                onClick={() => setForgotOpen(false)}
+                aria-label="Хаах"
+                className="absolute right-4 top-4 text-gray-400 hover:text-gray-700"
+              >
+                <X size={17} />
+              </button>
+              <h3 className="text-[15px] font-bold text-gray-900">🔑 Нууц үг сэргээх</h3>
+              <p className="mt-1.5 text-[12.5px] text-gray-500">
+                Бүртгэлтэй имэйл хаягаа оруулбал сэргээх линк илгээнэ.
+              </p>
+              <input
+                type="email"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                placeholder="tanii@mail.com"
+                autoFocus
+                className="mt-4 w-full rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+              {forgotMsg && (
+                <p className={`mt-3 text-[12.5px] ${forgotMsg.ok ? 'text-green-600' : 'text-red-500'}`}>
+                  {forgotMsg.text}
+                </p>
+              )}
+              <button
+                onClick={async () => {
+                  if (!supabase) return
+                  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(forgotEmail.trim())) {
+                    setForgotMsg({ ok: false, text: 'Имэйл хаягаа зөв оруулна уу.' })
+                    return
+                  }
+                  setForgotBusy(true)
+                  const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+                    redirectTo: window.location.origin + '/#profile',
+                  })
+                  setForgotBusy(false)
+                  if (error) setForgotMsg({ ok: false, text: 'Алдаа гарлаа: ' + error.message })
+                  else
+                    setForgotMsg({
+                      ok: true,
+                      text: 'Сэргээх линк илгээгдлээ! Имэйлээ шалгаад линкээр орж шинэ нууц үгээ тохируулна уу.',
+                    })
+                }}
+                disabled={forgotBusy}
+                className="mt-4 w-full rounded-full bg-blue-500 py-2.5 text-[13px] font-semibold text-white hover:bg-blue-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {forgotBusy && <Loader2 size={14} className="animate-spin" />} Сэргээх линк илгээх
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
