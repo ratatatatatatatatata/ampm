@@ -1296,13 +1296,11 @@ function CartDrawer({
 /* ---------------- Нэвтрэлт / Бүртгэл ---------------- */
 
 function LoginPage({ session }: { session: Session | null }) {
-  const [mode, setMode] = useState<'login' | 'signup' | 'phone'>('login')
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
-  const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
@@ -1328,34 +1326,21 @@ function LoginPage({ session }: { session: Session | null }) {
     setBusy(true)
     setError('')
     setInfo('')
-    if (mode === 'phone') {
-      const digits = phone.replace(/\D/g, '')
-      const full = '+' + (digits.length === 8 ? '976' + digits : digits)
-      if (!otpSent) {
-        const { error } = await supabase.auth.signInWithOtp({ phone: full })
-        setBusy(false)
-        if (error)
-          setError(
-            'Код илгээж чадсангүй — дугаараа шалгана уу. (SMS үйлчилгээ тохируулагдаагүй байж болзошгүй: ' +
-              error.message +
-              ')',
-          )
-        else {
-          setOtpSent(true)
-          setInfo('Баталгаажуулах код таны утсанд илгээгдлээ.')
-        }
-      } else {
-        const { error } = await supabase.auth.verifyOtp({ phone: full, token: otp.trim(), type: 'sms' })
-        setBusy(false)
-        if (error) setError('Код буруу эсвэл хугацаа нь дууссан байна.')
-        else window.location.hash = ''
-      }
-      return
-    }
     if (mode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      // Утасны дугаар бичсэн бол түүнд харгалзах имэйлийг олно (SMS-гүй, үнэгүй арга)
+      let loginEmail = email.trim()
+      if (/^[0-9+\-\s]{8,}$/.test(loginEmail)) {
+        const { data: foundEmail } = await supabase.rpc('email_for_phone', { p: loginEmail })
+        if (!foundEmail) {
+          setBusy(false)
+          setError('Энэ утасны дугаараар бүртгэл олдсонгүй. Имэйлээрээ нэвтэрч үзнэ үү.')
+          return
+        }
+        loginEmail = String(foundEmail)
+      }
+      const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
       setBusy(false)
-      if (error) setError('Имэйл эсвэл нууц үг буруу байна.')
+      if (error) setError('Нэвтрэх мэдээлэл эсвэл нууц үг буруу байна.')
       else window.location.hash = ''
     } else {
       const { data, error } = await supabase.auth.signUp({ email, password })
@@ -1363,9 +1348,12 @@ function LoginPage({ session }: { session: Session | null }) {
       if (error) {
         setError('Бүртгүүлэхэд алдаа гарлаа: ' + error.message)
       } else if (data.session) {
-        await supabase
-          .from('profiles')
-          .upsert({ id: data.session.user.id, email, name: name.trim() || null })
+        await supabase.from('profiles').upsert({
+          id: data.session.user.id,
+          email,
+          name: name.trim() || null,
+          phone: phone.trim() || null,
+        })
         window.location.hash = ''
       } else {
         setInfo('Бүртгэл амжилттай үүслээ! Нүүр хуудас руу шилжиж байна…')
@@ -1398,56 +1386,24 @@ function LoginPage({ session }: { session: Session | null }) {
             <Logo size={56} />
             <h1 className="text-[17px] font-bold text-gray-900">AM/PM гишүүнчлэл</h1>
           </div>
-          <div className="mb-6 grid grid-cols-3 rounded-full bg-gray-100 p-1">
-            {(['login', 'signup', 'phone'] as const).map((m) => (
+          <div className="mb-6 grid grid-cols-2 rounded-full bg-gray-100 p-1">
+            {(['login', 'signup'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => {
                   setMode(m)
                   setError('')
                   setInfo('')
-                  setOtpSent(false)
-                  setOtp('')
                 }}
-                className={`rounded-full py-2 text-[12.5px] font-semibold transition-colors ${
+                className={`rounded-full py-2 text-[13px] font-semibold transition-colors ${
                   mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
                 }`}
               >
-                {m === 'login' ? 'Нэвтрэх' : m === 'signup' ? 'Бүртгүүлэх' : 'Утсаар'}
+                {m === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
               </button>
             ))}
           </div>
           <form onSubmit={submit} className="flex flex-col gap-4">
-            {mode === 'phone' && (
-              <>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[12px] font-medium text-gray-700">Утасны дугаар</span>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="99123456"
-                    disabled={otpSent}
-                    className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400 disabled:opacity-60"
-                  />
-                </label>
-                {otpSent && (
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-[12px] font-medium text-gray-700">Баталгаажуулах код</span>
-                    <input
-                      inputMode="numeric"
-                      required
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      placeholder="6 оронтой код"
-                      autoFocus
-                      className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
-                    />
-                  </label>
-                )}
-              </>
-            )}
             {mode === 'signup' && (
               <label className="flex flex-col gap-1.5">
                 <span className="text-[12px] font-medium text-gray-700">Нэр</span>
@@ -1458,33 +1414,44 @@ function LoginPage({ session }: { session: Session | null }) {
                 />
               </label>
             )}
-            {mode !== 'phone' && (
-              <>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[12px] font-medium text-gray-700">Имэйл</span>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="username"
-                    className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[12px] font-medium text-gray-700">Нууц үг</span>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                    className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
-                  />
-                </label>
-              </>
+            {mode === 'signup' && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-medium text-gray-700">Утасны дугаар</span>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="99123456 — дараа нь энэ дугаараар нэвтэрч болно"
+                  className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+                />
+              </label>
             )}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">
+                {mode === 'login' ? 'Имэйл эсвэл утасны дугаар' : 'Имэйл'}
+              </span>
+              <input
+                type={mode === 'login' ? 'text' : 'email'}
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={mode === 'login' ? 'tanii@mail.com эсвэл 99123456' : ''}
+                autoComplete="username"
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-gray-700">Нууц үг</span>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+              />
+            </label>
             {error && <p className="text-[12.5px] text-red-500">{error}</p>}
             {info && <p className="text-[12.5px] text-green-600">{info}</p>}
             <button
@@ -1493,13 +1460,7 @@ function LoginPage({ session }: { session: Session | null }) {
               className="mt-1 rounded-full bg-blue-500 py-3 text-[14px] font-semibold text-white hover:bg-blue-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {busy && <Loader2 size={15} className="animate-spin" />}
-              {mode === 'login'
-                ? 'Нэвтрэх'
-                : mode === 'signup'
-                  ? 'Бүртгүүлэх'
-                  : otpSent
-                    ? 'Баталгаажуулах'
-                    : 'Код илгээх'}
+              {mode === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
             </button>
             {mode === 'login' && (
               <button
