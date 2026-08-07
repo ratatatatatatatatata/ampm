@@ -1296,10 +1296,13 @@ function CartDrawer({
 /* ---------------- Нэвтрэлт / Бүртгэл ---------------- */
 
 function LoginPage({ session }: { session: Session | null }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'phone'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [phone, setPhone] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
@@ -1312,12 +1315,43 @@ function LoginPage({ session }: { session: Session | null }) {
     if (session) window.location.hash = ''
   }, [session])
 
+  const oauthLogin = (provider: 'google' | 'facebook') => {
+    supabase?.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin },
+    })
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!supabase) return
     setBusy(true)
     setError('')
     setInfo('')
+    if (mode === 'phone') {
+      const digits = phone.replace(/\D/g, '')
+      const full = '+' + (digits.length === 8 ? '976' + digits : digits)
+      if (!otpSent) {
+        const { error } = await supabase.auth.signInWithOtp({ phone: full })
+        setBusy(false)
+        if (error)
+          setError(
+            'Код илгээж чадсангүй — дугаараа шалгана уу. (SMS үйлчилгээ тохируулагдаагүй байж болзошгүй: ' +
+              error.message +
+              ')',
+          )
+        else {
+          setOtpSent(true)
+          setInfo('Баталгаажуулах код таны утсанд илгээгдлээ.')
+        }
+      } else {
+        const { error } = await supabase.auth.verifyOtp({ phone: full, token: otp.trim(), type: 'sms' })
+        setBusy(false)
+        if (error) setError('Код буруу эсвэл хугацаа нь дууссан байна.')
+        else window.location.hash = ''
+      }
+      return
+    }
     if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       setBusy(false)
@@ -1364,24 +1398,56 @@ function LoginPage({ session }: { session: Session | null }) {
             <Logo size={56} />
             <h1 className="text-[17px] font-bold text-gray-900">AM/PM гишүүнчлэл</h1>
           </div>
-          <div className="mb-6 grid grid-cols-2 rounded-full bg-gray-100 p-1">
-            {(['login', 'signup'] as const).map((m) => (
+          <div className="mb-6 grid grid-cols-3 rounded-full bg-gray-100 p-1">
+            {(['login', 'signup', 'phone'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => {
                   setMode(m)
                   setError('')
                   setInfo('')
+                  setOtpSent(false)
+                  setOtp('')
                 }}
-                className={`rounded-full py-2 text-[13px] font-semibold transition-colors ${
+                className={`rounded-full py-2 text-[12.5px] font-semibold transition-colors ${
                   mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
                 }`}
               >
-                {m === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
+                {m === 'login' ? 'Нэвтрэх' : m === 'signup' ? 'Бүртгүүлэх' : 'Утсаар'}
               </button>
             ))}
           </div>
           <form onSubmit={submit} className="flex flex-col gap-4">
+            {mode === 'phone' && (
+              <>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[12px] font-medium text-gray-700">Утасны дугаар</span>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="99123456"
+                    disabled={otpSent}
+                    className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400 disabled:opacity-60"
+                  />
+                </label>
+                {otpSent && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-[12px] font-medium text-gray-700">Баталгаажуулах код</span>
+                    <input
+                      inputMode="numeric"
+                      required
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="6 оронтой код"
+                      autoFocus
+                      className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+                    />
+                  </label>
+                )}
+              </>
+            )}
             {mode === 'signup' && (
               <label className="flex flex-col gap-1.5">
                 <span className="text-[12px] font-medium text-gray-700">Нэр</span>
@@ -1392,29 +1458,33 @@ function LoginPage({ session }: { session: Session | null }) {
                 />
               </label>
             )}
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-gray-700">Имэйл</span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="username"
-                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-gray-700">Нууц үг</span>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
-              />
-            </label>
+            {mode !== 'phone' && (
+              <>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[12px] font-medium text-gray-700">Имэйл</span>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[12px] font-medium text-gray-700">Нууц үг</span>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    className="rounded-xl bg-gray-50 px-4 py-2.5 text-[13px] outline-none border border-transparent focus:border-blue-400"
+                  />
+                </label>
+              </>
+            )}
             {error && <p className="text-[12.5px] text-red-500">{error}</p>}
             {info && <p className="text-[12.5px] text-green-600">{info}</p>}
             <button
@@ -1423,7 +1493,13 @@ function LoginPage({ session }: { session: Session | null }) {
               className="mt-1 rounded-full bg-blue-500 py-3 text-[14px] font-semibold text-white hover:bg-blue-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {busy && <Loader2 size={15} className="animate-spin" />}
-              {mode === 'login' ? 'Нэвтрэх' : 'Бүртгүүлэх'}
+              {mode === 'login'
+                ? 'Нэвтрэх'
+                : mode === 'signup'
+                  ? 'Бүртгүүлэх'
+                  : otpSent
+                    ? 'Баталгаажуулах'
+                    : 'Код илгээх'}
             </button>
             {mode === 'login' && (
               <button
@@ -1439,6 +1515,36 @@ function LoginPage({ session }: { session: Session | null }) {
               </button>
             )}
           </form>
+
+          {/* Гадны нэвтрэлт */}
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-gray-200" />
+            <span className="text-[11.5px] text-gray-400">эсвэл</span>
+            <span className="h-px flex-1 bg-gray-200" />
+          </div>
+          <div className="flex flex-col gap-2.5">
+            <button
+              onClick={() => oauthLogin('google')}
+              className="flex items-center justify-center gap-2.5 rounded-full border border-gray-200 py-2.5 text-[13px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              Google-ээр нэвтрэх
+            </button>
+            <button
+              onClick={() => oauthLogin('facebook')}
+              className="flex items-center justify-center gap-2.5 rounded-full border border-gray-200 py-2.5 text-[13px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="#1877F2">
+                <path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.09 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.7 4.53-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.89v2.26h3.32l-.53 3.49h-2.79V24C19.61 23.09 24 18.1 24 12.07z" />
+              </svg>
+              Facebook-ээр нэвтрэх
+            </button>
+          </div>
         </div>
 
         {/* Нууц үг сэргээх цонх */}
