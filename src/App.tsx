@@ -906,21 +906,20 @@ function CartDrawer({
       payment_method: payMethod,
     }
 
-    let orderId: string | null = null
+    let orderId: string = crypto.randomUUID()
     if (supabase) {
-      let { data, error } = await supabase.from('orders').insert(order).select('id').single()
+      let { error } = await supabase.from('orders').insert({ id: orderId, ...order })
       // payment_method багана хараахан нэмэгдээгүй бол түүнгүйгээр хадгална
       if (error && /payment_method/i.test(error.message)) {
         const { payment_method: _omit, ...rest } = order
         void _omit
-        ;({ data, error } = await supabase.from('orders').insert(rest).select('id').single())
+        ;({ error } = await supabase.from('orders').insert({ id: orderId, ...rest }))
       }
       if (error) {
         setBusy(false)
         setError('Захиалга илгээхэд алдаа гарлаа: ' + error.message)
         return
       }
-      orderId = data?.id ? String(data.id) : null
     } else {
       orderId = `local-${Date.now()}`
       const local = loadJson<Order[]>(LOCAL_ORDERS_KEY, [])
