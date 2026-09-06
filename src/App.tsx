@@ -232,7 +232,7 @@ const tips = [
   },
   {
     title: '3 сар тутамд солино',
-    desc: 'Хялгас нь салбайсан сойз үр дүнгүй — улирал бүр шинэчлээрэй.',
+    desc: 'Үс нь салбайсан сойз үр дүнгүй — улирал бүр шинэчлээрэй.',
   },
 ]
 
@@ -245,7 +245,7 @@ const features = [
   {
     icon: Feather,
     title: 'Зөөлөн арчилгаа',
-    desc: 'KR PBT нарийн хялгас — буйланд зөөлөн, өнгөрт хатуу.',
+    desc: 'KR PBT нарийн үс — буйланд зөөлөн, өнгөрт хатуу.',
   },
   {
     icon: Gem,
@@ -280,7 +280,7 @@ const qualityCards = [
   },
   {
     no: '03',
-    title: 'KR PBT сойзны хялгас',
+    title: 'KR PBT сойзны үс',
     desc: 'Гаднаа зөөлөн, дотроо бат — шүдийг цэвэрлэж, буйлыг хамгаална',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={goldIconCls}>
@@ -305,10 +305,10 @@ const qualityCards = [
 const specs = [
   { label: 'Брэнд', value: 'AM/PM' },
   { label: 'Загварын дугаар', value: 'B908' },
-  { label: 'Хялгасны төрөл', value: 'Зөөлөн хялгас' },
+  { label: 'Үсний төрөл', value: 'Зөөлөн үс' },
   { label: 'Утасны нэрлэсэн диаметр', value: '0.152мм' },
   { label: 'Үзүүрийн диаметр', value: '0.01мм' },
-  { label: 'Хялгасны материал', value: 'KR PBT' },
+  { label: 'Үсний материал', value: 'KR PBT' },
   { label: 'Бариулын өнгө', value: 'Ягаан алт бүрэлт' },
   { label: 'Хэмжээ', value: '190мм × 16мм' },
 ]
@@ -320,7 +320,7 @@ const reviews = [
   },
   {
     name: 'Батбаяр Т.',
-    text: 'Бариул нь гарт маш эвтэйхэн, хялгас нь буйлыг огт гэмтээдэггүй.',
+    text: 'Бариул нь гарт маш эвтэйхэн, үс нь буйлыг огт гэмтээдэггүй.',
   },
   {
     name: 'Номин Э.',
@@ -2999,7 +2999,7 @@ function App() {
             <GoldHeading line1="Бусдаас тодор." line2="Илүү мэдэгдэхүйц үр дүнг хар." />
             <div className="mt-6 flex justify-center">
               <span className="rounded-full border border-[#d9b483]/60 px-5 py-2 text-[11.5px] sm:text-[12.5px] text-[#e8cfa4] text-center">
-                Металл бүрэлт&nbsp;·&nbsp;Дээд зэрэглэлийн хайрцаг&nbsp;·&nbsp;Зөөлөн хялгас
+                Металл бүрэлт&nbsp;·&nbsp;Дээд зэрэглэлийн хайрцаг&nbsp;·&nbsp;Зөөлөн үс
               </span>
             </div>
             <div className="mt-10 overflow-hidden rounded-3xl">
@@ -3044,7 +3044,7 @@ function App() {
               <div className="relative mx-auto max-w-sm">
                 <img
                   src="/img/pdf09-1.jpg"
-                  alt="AM/PM сойзны нарийн хялгас"
+                  alt="AM/PM сойзны нарийн үс"
                   className="w-full rounded-2xl shadow-2xl"
                   loading="lazy"
                 />
@@ -3098,7 +3098,7 @@ function App() {
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
-                  <p className="text-[12.5px] font-semibold text-white/70">Энгийн зүлгүүрийн хялгас</p>
+                  <p className="text-[12.5px] font-semibold text-white/70">Энгийн зүлгүүрийн үс</p>
                   <p className="mt-1.5 text-[11.5px] leading-relaxed text-white/40">
                     Буйлыг гэмтээж, өнгөрийн үлдэгдэл үлдээдэг
                   </p>
