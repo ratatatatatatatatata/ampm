@@ -1,11 +1,25 @@
+import type { IncomingMessage } from 'node:http';
 import { createOrderNotificationHandler } from '../server/order-notifications.ts';
+import type { NotificationStore } from '../server/order-notifications.ts';
 import { createNotificationStore } from '../server/order-notification-store.ts';
+
+type ApiRequest = Pick<IncomingMessage, 'method' | 'headers'>;
+type ApiResponse = {
+  setHeader(name: string, value: string): unknown;
+  status(code: number): ApiResponse;
+  json(body: unknown): unknown;
+};
+type Dependencies = {
+  env?: (name: string) => string | undefined;
+  fetchImpl?: typeof fetch;
+  createStore?: (url: string, key: string) => NotificationStore;
+};
 
 export function createProcessOrderNotificationsHandler({
   env = (name) => process.env[name],
   fetchImpl = (input, init) => globalThis.fetch(input, init),
   createStore = (url, key) => createNotificationStore(url, key, fetchImpl),
-} = {}) {
+}: Dependencies = {}) {
   const worker = createOrderNotificationHandler({
     env: (name) => {
       // This legacy variable is read only by the server; never add it to client imports.
@@ -15,7 +29,7 @@ export function createProcessOrderNotificationsHandler({
     },
     createStore, fetch: fetchImpl,
   });
-  return async function handler(request, response) {
+  return async function handler(request: ApiRequest, response: ApiResponse) {
     response.setHeader('Cache-Control', 'no-store');
     if (request.method !== 'GET') {
       response.setHeader('Allow', 'GET');

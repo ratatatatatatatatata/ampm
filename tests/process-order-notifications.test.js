@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createProcessOrderNotificationsHandler } from '../api/process-order-notifications.js';
+import { createProcessOrderNotificationsHandler } from '../api/process-order-notifications.ts';
 import { createNotificationStore } from '../server/order-notification-store.ts';
 
 function setup(overrides = {}) {

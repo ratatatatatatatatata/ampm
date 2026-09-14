@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/process-order-notifications.js": { "maxDuration": 30 }
+    "api/process-order-notifications.ts": { "maxDuration": 30 }
   },
   "crons": [
     { "path": "/api/process-order-notifications", "schedule": "* * * * *" }
