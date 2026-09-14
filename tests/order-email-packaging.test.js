@@ -15,7 +15,7 @@ test('compiled Vercel entry resolves JavaScript dependencies and runs without Ty
   const config = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
   assert.ok(config.functions[entry]);
 
-  // Match @vercel/node's closest-config lookup and emitted import rewriting.
+  // @vercel/node uses project-aware emit, including package.json module inference.
   const configPath = ts.findConfigFile(join(root, 'api'), ts.sys.fileExists);
   assert.equal(configPath, join(root, 'api/tsconfig.json'));
   const loaded = ts.readConfigFile(configPath, ts.sys.readFile);
@@ -24,7 +24,6 @@ test('compiled Vercel entry resolves JavaScript dependencies and runs without Ty
   const program = ts.createProgram([join(root, entry)], {
     ...parsed.options,
     rootDir: root, outDir: output, noEmit: false,
-    rewriteRelativeImportExtensions: true,
   });
   const errors = ts.getPreEmitDiagnostics(program).filter((item) => item.category === ts.DiagnosticCategory.Error);
   assert.deepEqual(errors.map((item) => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
