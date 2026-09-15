@@ -30,7 +30,6 @@ to frontend variables or commit their values.
 | Vercel production | `AMPM_NOTIFICATION_FROM` | Verified sender identity |
 | Vercel production | `AMPM_NOTIFICATION_TO` | Approved comma-separated admin recipients |
 | Vercel production | `AMPM_EMAIL_ENABLED` | Set to `true` only after sender verification |
-| Vercel production | `AMPM_RESEND_DOMAIN_ID` | AM/PM domain ID for authenticated diagnostics |
 | Vercel production | `CRON_SECRET` | Dedicated random secret for the cron route |
 | Vercel production | `VITE_SUPABASE_URL` | Existing AM/PM Supabase project |
 | Vercel production | `VITE_SUPABASE_service_role` | Existing secret, read only by the server adapter |
@@ -39,6 +38,17 @@ Despite its legacy name, `VITE_SUPABASE_service_role` must only be read through
 `process.env` by server code. Never reference it in frontend code or
 `import.meta.env`. The cron validates `Authorization: Bearer <CRON_SECRET>`
 before any database or provider access. It exposes no anonymous order lookup.
+
+The authenticated `/api/order-email-status` endpoint discovers the Resend domain
+by the exact case-insensitive name `ampm.mn`. It reads domain list pages using
+`limit=100` and `after`, then retrieves DNS records only when exactly one matching
+domain exists. Its `domain_id` is the ID returned by Resend. A Vercel Marketplace
+resource ID is not a substitute, and `AMPM_RESEND_DOMAIN_ID` is not used.
+The endpoint returns no other domain names or account metadata. It requires a
+Resend key with permission to read domains; a provider `403` is reported without
+the provider response body. Lookups stop after eight seconds or twenty pages.
+See [Resend pagination](https://resend.com/docs/api-reference/pagination) and
+[domain retrieval](https://resend.com/docs/api-reference/domains/get-domain).
 
 ## Release
 
