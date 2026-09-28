@@ -139,6 +139,41 @@ test('provider failure retries only unaccepted recipients with the original payl
   assert.equal(context.queue.status, 'sent');
 });
 
+test('delivery request is escaped, delivered separately to both configured recipients, and never a promise', async () => {
+  const context = setup();
+  context.env.AMPM_NOTIFICATION_TO = 'first@example.com,second@example.com';
+  context.queue.order_snapshot = { ...fixture, delivery_preference: '10-р сарын 2, 14:00–18:00 <script>alert(1)</script>' };
+  assert.equal((await context.run()).status, 200);
+  assert.equal(context.requests.length, 2);
+  assert.deepEqual(context.requests.map(({ payload }) => payload.to), [['first@example.com'], ['second@example.com']]);
+  for (const { payload } of context.requests) {
+    assert.ok(payload.text.includes('10-р сарын 2, 14:00–18:00'));
+    assert.ok(payload.html.includes('&lt;script&gt;'));
+    assert.equal(payload.html.includes('<script>'), false);
+    assert.ok(payload.text.includes('хүргэлтийн ажилтан'));
+  }
+  await context.run();
+  assert.equal(context.requests.length, 2);
+});
+
+test('absent and null delivery requests keep legacy orders deliverable with an honest fallback', async () => {
+  for (const delivery_preference of [undefined, null]) {
+    const context = setup();
+    context.queue.order_snapshot = { ...fixture, delivery_preference };
+    assert.equal((await context.run()).status, 200);
+    assert.ok(context.requests[0].payload.text.includes('Заагаагүй — утсаар тохиролцоно'));
+  }
+});
+
+test('malformed or oversized delivery requests do not reach the email provider', async () => {
+  for (const delivery_preference of ['', ' ', 42, {}, 'x'.repeat(501)]) {
+    const context = setup();
+    context.queue.order_snapshot = { ...fixture, delivery_preference };
+    assert.equal((await context.run()).status, 502);
+    assert.equal(context.requests.length, 0);
+  }
+});
+
 test('provider network errors contain no exception details and retry within the idempotency window', async () => {
   const context = setup();
   context.setProvider(async () => { throw new Error('Customer data and secret should not escape'); });

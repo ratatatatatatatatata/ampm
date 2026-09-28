@@ -112,6 +112,7 @@ type Order = {
   status: string
   created_at: string
   paymentMethod?: string
+  deliveryPreference?: string
 }
 
 type Profile = {
@@ -203,6 +204,7 @@ const mapOrder = (r: any): Order => ({
   status: r.status ?? 'new',
   created_at: r.created_at ?? new Date().toISOString(),
   paymentMethod: r.payment_method ?? undefined,
+  deliveryPreference: r.delivery_preference ?? undefined,
 })
 
 const fmt = (n: number) => `${n.toLocaleString('mn-MN')}₮`
@@ -838,6 +840,7 @@ function CartDrawer({
   const [step, setStep] = useState<'cart' | 'checkout' | 'done' | 'qpay'>('cart')
   const [contact, setContact] = useState('')
   const [address, setAddress] = useState('')
+  const [deliveryPreference, setDeliveryPreference] = useState('')
   const [latLng, setLatLng] = useState<{ lat: number; lng: number } | null>(null)
   const [payMethod, setPayMethod] = useState<'transfer' | 'qpay'>('transfer')
   const [qpayData, setQpayData] = useState<QpayData | null>(null)
@@ -901,6 +904,7 @@ function CartDrawer({
       total: grandTotal,
       contact: contact.trim(),
       address: address.trim(),
+      delivery_preference: deliveryPreference.trim() || null,
       lat: latLng?.lat ?? null,
       lng: latLng?.lng ?? null,
       payment_method: payMethod,
@@ -930,6 +934,7 @@ function CartDrawer({
           status: 'new',
           created_at: new Date().toISOString(),
           paymentMethod: payMethod,
+          deliveryPreference: deliveryPreference.trim() || undefined,
         },
         ...local,
       ])
@@ -939,6 +944,7 @@ function CartDrawer({
     clearCart()
     setContact('')
     setAddress('')
+    setDeliveryPreference('')
     setLatLng(null)
 
     if (payMethod === 'qpay' && supabase) {
@@ -1200,6 +1206,22 @@ function CartDrawer({
                   placeholder="Дүүрэг, хороо, байр, орц, тоот…"
                   className="rounded-xl bg-white px-4 py-2.5 text-[13px] text-gray-900 outline-none border border-gray-200 focus:border-blue-400 transition-colors resize-none"
                 />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12.5px] font-medium text-gray-700">Хэзээ хүргүүлэхийг хүсэж байна вэ? (заавал биш)</span>
+                <input
+                  value={deliveryPreference}
+                  onChange={(e) => setDeliveryPreference(e.target.value)}
+                  maxLength={500}
+                  placeholder="Жишээ: 10-р сарын 2-нд, 14:00–18:00 цагт"
+                  aria-describedby="delivery-preference-help"
+                  className="min-w-0 w-full rounded-xl bg-white px-4 py-2.5 text-[13px] text-gray-900 outline-none border border-gray-200 focus:border-blue-400 transition-colors"
+                />
+                <span id="delivery-preference-help" className="text-[11.5px] text-gray-500">
+                  Энэ нь таны хүсэлт. Хүргэлтийн ажилтан холбогдож өдөр, цагийг баталгаажуулна.
+                  Бичээгүй бол утсаар тохиролцоно.
+                </span>
               </label>
 
               {/* Төлбөрийн хэлбэр */}
@@ -2350,6 +2372,9 @@ function AdminPanel({
                         </p>
                         <p className="mt-1 text-[12px] text-gray-500 flex items-start gap-1">
                           <MapPin size={12} className="mt-0.5 shrink-0" /> {o.address}
+                        </p>
+                        <p className="mt-1 text-[12px] text-gray-600 break-words">
+                          Хүргүүлэх хүсэлт: {o.deliveryPreference || 'Утсаар тохиролцоно'}
                         </p>
                         <p className="mt-1.5 text-[12px] text-gray-600">
                           {o.items.map((i) => `${i.name} ×${i.qty}`).join(' · ')}

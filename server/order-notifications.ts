@@ -36,6 +36,7 @@ type Order = {
   id: string;
   contact: string;
   address: string;
+  delivery_preference?: string | null;
   lat: number | null;
   lng: number | null;
   items: { name: string; price: number; qty: number }[];
@@ -101,6 +102,7 @@ function boundedText(value: unknown, max: number): value is string {
 function validOrder(value: unknown, orderId: string): value is Order {
   if (!object(value) || value.id !== orderId || !boundedText(value.contact, 500) ||
     !boundedText(value.address, 5000) || !boundedText(value.created_at, 100) ||
+    (value.delivery_preference != null && !boundedText(value.delivery_preference, 500)) ||
     !Number.isFinite(Date.parse(value.created_at)) || !boundedText(value.status, 100) ||
     (value.payment_method !== null && !boundedText(value.payment_method, 100)) ||
     typeof value.total !== "number" || !Number.isFinite(value.total) || value.total <= 0 ||
@@ -130,13 +132,14 @@ export function emailPayload(order: Order, sender: string, recipient: string): E
     ["Бүртгэгдсэн цаг (Улаанбаатар)", date],
     ["Утас / имэйл", order.contact],
     ["Хүргэлтийн хаяг", order.address],
+    ["Хүргүүлэх хүссэн өдөр / цаг", order.delivery_preference || "Заагаагүй — утсаар тохиролцоно"],
     ["Төлбөрийн сонголт", payment],
-    ["Бүртгэх үеийн төлөв", order.status],
+    ["Захиалгын төлөв", order.status === "new" ? "Шинэ захиалга" : order.status],
   ];
   const hasCoordinates = typeof order.lat === "number" && Number.isFinite(order.lat) &&
     Math.abs(order.lat) <= 90 && typeof order.lng === "number" && Number.isFinite(order.lng) && Math.abs(order.lng) <= 180;
   const mapUrl = hasCoordinates ? `https://www.google.com/maps/search/?api=1&query=${order.lat},${order.lng}` : null;
-  const note = "Захиалга бүртгэгдсэн. Энэ мэдэгдэл нь төлбөр төлөгдсөнийг батлахгүй.";
+  const note = "Захиалга бүртгэгдсэн. Энэ мэдэгдэл нь төлбөр төлөгдсөнийг батлахгүй. Хүргүүлэх өдөр, цаг нь хэрэглэгчийн хүсэлт бөгөөд хүргэлтийн ажилтан холбогдож баталгаажуулна.";
   const text = [
     "AM/PM - Шинэ захиалга", ...rows.map(([label, value]) => `${label}: ${value}`),
     ...(mapUrl ? [`Газрын зураг: ${mapUrl}`] : []), "",

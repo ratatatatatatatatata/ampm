@@ -7,6 +7,10 @@ const migration = readFileSync(new URL(
   '../supabase/migrations/20260914123750_ampm_order_email_notifications.sql',
   import.meta.url,
 ), 'utf8');
+const deliveryMigration = readFileSync(new URL(
+  '../supabase/migrations/20260928165250_ampm_order_delivery_preference.sql',
+  import.meta.url,
+), 'utf8');
 
 const orderId = (number) => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
 
@@ -19,7 +23,7 @@ async function insertOrder(db, number) {
   `, [orderId(number), JSON.stringify([{ id: 'synthetic-product', quantity: 2, price: 6000 }])]);
 }
 
-async function database(t, { historicalOrder = false } = {}) {
+async function database(t, { historicalOrder = false, applyDeliveryMigration = true } = {}) {
   const db = new PGlite();
   t.after(() => db.close());
   await db.exec(`
@@ -48,8 +52,34 @@ async function database(t, { historicalOrder = false } = {}) {
   `);
   if (historicalOrder) await insertOrder(db, 1);
   await db.exec(migration);
+  if (applyDeliveryMigration) await db.exec(deliveryMigration);
   return db;
 }
+
+test('delivery migration preserves old snapshots and freezes the request for new orders', async (t) => {
+  const db = await database(t, { applyDeliveryMigration: false });
+  await insertOrder(db, 1);
+  const oldSnapshot = (await notification(db, 1)).order_snapshot;
+  await db.exec(deliveryMigration);
+  assert.deepEqual((await notification(db, 1)).order_snapshot, oldSnapshot);
+  assert.equal((await db.query('select delivery_preference from public.orders')).rows[0].delivery_preference, null);
+  await asRole(db, 'anon', () => db.query(`
+    insert into public.orders (id, items, total, delivery_preference)
+    values ($1, '[]'::jsonb, 0, $2)
+  `, [orderId(2), '10-р сарын 2, 14:00–18:00']));
+  const snapshot = (await notification(db, 2)).order_snapshot;
+  assert.equal(snapshot.delivery_preference, '10-р сарын 2, 14:00–18:00');
+  await db.query('update public.orders set delivery_preference = $1 where id = $2', ['Changed request', orderId(2)]);
+  assert.deepEqual((await notification(db, 2)).order_snapshot, snapshot);
+  for (const invalid of ['', '   ', 'x'.repeat(501)]) {
+    await assert.rejects(db.query(`
+      insert into public.orders (id, items, total, delivery_preference)
+      values ($1, '[]'::jsonb, 0, $2)
+    `, [orderId(3), invalid]), (error) => error.code === '23514');
+  }
+  assert.equal((await db.query('select count(*)::int as count from public.orders')).rows[0].count, 2);
+  assert.equal((await db.query('select count(*)::int as count from public.ampm_order_notifications')).rows[0].count, 2);
+});
 
 async function asRole(db, role, callback) {
   assert.ok(['anon', 'authenticated', 'service_role'].includes(role));
