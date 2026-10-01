@@ -112,6 +112,8 @@ type Order = {
   status: string
   created_at: string
   paymentMethod?: string
+  paymentStatus?: string
+  paidAt?: string
   deliveryPreference?: string
 }
 
@@ -204,6 +206,8 @@ const mapOrder = (r: any): Order => ({
   status: r.status ?? 'new',
   created_at: r.created_at ?? new Date().toISOString(),
   paymentMethod: r.payment_method ?? undefined,
+  paymentStatus: r.payment_status ?? 'pending',
+  paidAt: r.paid_at ?? undefined,
   deliveryPreference: r.delivery_preference ?? undefined,
 })
 
@@ -837,13 +841,17 @@ function CartDrawer({
   session: Session | null
   profile: Profile | null
 }) {
-  const [step, setStep] = useState<'cart' | 'checkout' | 'done' | 'qpay'>('cart')
+  const [step, setStep] = useState<'cart' | 'checkout' | 'done' | 'qpay' | 'paid'>('cart')
   const [contact, setContact] = useState('')
   const [address, setAddress] = useState('')
   const [deliveryPreference, setDeliveryPreference] = useState('')
   const [latLng, setLatLng] = useState<{ lat: number; lng: number } | null>(null)
   const [payMethod, setPayMethod] = useState<'transfer' | 'qpay'>('transfer')
   const [qpayData, setQpayData] = useState<QpayData | null>(null)
+  const [paymentOrder, setPaymentOrder] = useState<{ orderId: string; checkoutToken: string } | null>(null)
+  const [paymentMessage, setPaymentMessage] = useState('Төлбөр баталгаажихыг хүлээж байна.')
+  const checkingPayment = useRef(false)
+
   const [doneNote, setDoneNote] = useState('')
   const [doneTotal, setDoneTotal] = useState(0)
   const [error, setError] = useState('')
@@ -857,8 +865,41 @@ function CartDrawer({
   }
 
   useEffect(() => {
-    if (open) setStep('cart')
+    if (!open) return
+    const pending = loadJson<{ orderId: string; checkoutToken: string; total: number; data: QpayData } | null>('ampm-pending-qpay', null)
+    if (pending) {
+      setPaymentOrder({ orderId: pending.orderId, checkoutToken: pending.checkoutToken })
+      setQpayData(pending.data)
+      setDoneTotal(pending.total)
+      setStep('qpay')
+    } else setStep('cart')
   }, [open])
+
+  const checkPayment = useCallback(async () => {
+    if (!supabase || !paymentOrder || checkingPayment.current) return
+    checkingPayment.current = true
+    try {
+      const { data, error } = await supabase.functions.invoke('qpay-status', { body: paymentOrder })
+      if (error || data?.error) {
+        setPaymentMessage('Төлбөрийн төлөв шалгахад алдаа гарлаа. Дахин шалгана уу.')
+      } else if (data?.paid === true) {
+        localStorage.removeItem('ampm-pending-qpay')
+        setStep('paid')
+      } else setPaymentMessage('Төлбөр хараахан баталгаажаагүй байна. Баталгаажмагц автоматаар шинэчлэгдэнэ.')
+    } catch {
+      setPaymentMessage('Төлбөрийн төлөв шалгахад алдаа гарлаа. Дахин шалгана уу.')
+    } finally { checkingPayment.current = false }
+  }, [paymentOrder])
+
+  useEffect(() => {
+    if (!open || step !== 'qpay') return
+    void checkPayment()
+    // Poll only our status record, never the QPay merchant API.
+    const timer = setInterval(() => { if (!document.hidden) void checkPayment() }, 10000)
+    const onFocus = () => { void checkPayment() }
+    window.addEventListener('focus', onFocus)
+    return () => { clearInterval(timer); window.removeEventListener('focus', onFocus) }
+  }, [open, step, checkPayment])
 
   // Профайлын мэдээллээр урьдчилан бөглөнө
   useEffect(() => {
@@ -896,7 +937,9 @@ function CartDrawer({
     setError('')
     setBusy(true)
 
+    const checkoutToken = crypto.randomUUID()
     const order = {
+      checkout_token: checkoutToken,
       items: [
         ...lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty })),
         { name: 'Хүргэлтийн төлбөр', price: DELIVERY_FEE, qty: 1 },
@@ -951,11 +994,14 @@ function CartDrawer({
       // QPay нэхэмжлэх үүсгэх (Edge Function тохируулагдсан үед)
       try {
         const { data, error } = await supabase.functions.invoke('qpay-invoice', {
-          body: { amount: grandTotal, orderId, description: 'AM/PM захиалга' },
+          body: { orderId, checkoutToken },
         })
         setBusy(false)
         if (error || data?.error) throw new Error(data?.error ?? error?.message)
         setQpayData(data as QpayData)
+        setPaymentOrder({ orderId, checkoutToken })
+        setPaymentMessage('Төлбөр баталгаажихыг хүлээж байна.')
+        saveJson('ampm-pending-qpay', { orderId, checkoutToken, total: grandTotal, data })
         setStep('qpay')
         return
       } catch {
@@ -999,7 +1045,15 @@ function CartDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {step === 'done' ? (
+          {step === 'paid' ? (
+            <div className="flex flex-col items-center gap-4 py-10 text-center">
+              <CheckCircle2 size={48} className="text-green-500" />
+              <p className="text-[17px] font-semibold text-gray-900">QPay төлбөр баталгаажлаа</p>
+              <p className="text-[14px] text-gray-700">Төлсөн дүн: {fmt(doneTotal)}</p>
+              <p className="text-[13px] text-gray-500">Захиалгыг хүлээн авлаа. Бид хүргэлтийн талаар холбогдоно.</p>
+              <button onClick={onClose} className="rounded-full bg-blue-500 px-7 py-2.5 text-white">Хаах</button>
+            </div>
+          ) : step === 'done' ? (
             <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
               <CheckCircle2 size={44} className="text-green-500" />
               <p className="text-[16px] font-semibold text-gray-900">Захиалга амжилттай илгээгдлээ!</p>
@@ -1097,8 +1151,10 @@ function CartDrawer({
                 onClick={onClose}
                 className="mt-2 rounded-full bg-blue-500 text-white text-[13px] font-medium px-7 py-2.5 hover:bg-blue-600 transition-colors"
               >
-                Болсон
+                Түр хаах
               </button>
+              <p aria-live="polite" className="text-[12px] text-gray-600">{paymentMessage}</p>
+              <button onClick={() => { void checkPayment() }} className="text-[13px] font-medium text-blue-600 underline">Төлбөрийн төлөв шалгах</button>
             </div>
           ) : step === 'cart' ? (
             lines.length === 0 ? (
@@ -1280,7 +1336,7 @@ function CartDrawer({
           )}
         </div>
 
-        {step !== 'done' && step !== 'qpay' && lines.length > 0 && (
+        {step !== 'done' && step !== 'qpay' && step !== 'paid' && lines.length > 0 && (
           <div className="border-t border-gray-200 px-6 py-5 bg-white">
             <div className="flex items-center justify-between mb-4">
               <span className="text-[13px] text-gray-500">
@@ -1896,16 +1952,19 @@ function AdminPanel({
   products,
   reloadProducts,
   session,
+  readOnly = false,
 }: {
   products: Product[]
   reloadProducts: () => Promise<void>
   session: Session | null
+  readOnly?: boolean
 }) {
   const [tab, setTab] = useState<'orders' | 'products' | 'users'>('orders')
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersError, setOrdersError] = useState('')
   const [users, setUsers] = useState<Profile[]>([])
   const [usersError, setUsersError] = useState('')
+  const [employeeIds, setEmployeeIds] = useState<string[]>([])
   const [notifTarget, setNotifTarget] = useState<Profile | 'all' | null>(null)
   const [notifTitle, setNotifTitle] = useState('')
   const [notifBody, setNotifBody] = useState('')
@@ -1998,6 +2057,21 @@ function AdminPanel({
       })
   }, [tab, session])
 
+  useEffect(() => {
+    if (!supabase || !session || readOnly) return
+    supabase.from('employees').select('user_id').then(({ data }) => setEmployeeIds((data ?? []).map(r => r.user_id)))
+  }, [session, readOnly])
+
+  const toggleEmployee = async (id: string) => {
+    if (!supabase || readOnly) return
+    const exists = employeeIds.includes(id)
+    const { error } = exists
+      ? await supabase.from('employees').delete().eq('user_id', id)
+      : await supabase.from('employees').insert({ user_id: id })
+    if (error) setUsersError('Ажилтны эрх өөрчлөхөд алдаа гарлаа: ' + error.message)
+    else setEmployeeIds(prev => exists ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
   const sendNotif = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!supabase || !notifTarget || !notifTitle.trim()) return
@@ -2027,6 +2101,7 @@ function AdminPanel({
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         const o = mapOrder(payload.new)
         setOrders((prev) => [o, ...prev])
+        if (o.paymentMethod === 'qpay') return
         setFlash(`Шинэ захиалга: ${o.contact} — ${fmt(o.total)}`)
         setTimeout(() => setFlash(null), 6000)
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
@@ -2035,11 +2110,25 @@ function AdminPanel({
           })
         }
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const o = mapOrder(payload.new)
+        setOrders(prev => prev.map(existing => existing.id === o.id ? o : existing))
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, (payload) => {
+        const n = payload.new as Notif
+        if (n.title !== 'QPay-ээр төлбөр төлөгдлөө') return
+        setFlash(n.body)
+        setTimeout(() => setFlash(null), 8000)
+        void loadOrders()
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification(n.title, { body: n.body, tag: n.id })
+        }
+      })
       .subscribe()
     return () => {
       supabase?.removeChannel(ch)
     }
-  }, [session])
+  }, [session, loadOrders])
 
   const enableNotif = async () => {
     if (typeof Notification === 'undefined') return
@@ -2048,6 +2137,7 @@ function AdminPanel({
   }
 
   const setOrderStatus = async (id: string, status: string) => {
+    if (readOnly) return
     if (supabase) {
       const { error } = await supabase.from('orders').update({ status }).eq('id', id)
       if (!error) setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)))
@@ -2196,7 +2286,7 @@ function AdminPanel({
         <div className="flex items-center gap-3 mb-4">
           <Logo size={44} />
           <div>
-            <h1 className="text-[1.4rem] font-medium text-gray-900 tracking-tight">Админ панель</h1>
+            <h1 className="text-[1.4rem] font-medium text-gray-900 tracking-tight">{readOnly ? 'Ажилтны панель' : 'Админ панель'}</h1>
             <p className="text-[12.5px] text-gray-500">
               {session?.user?.email ? `Нэвтэрсэн: ${session.user.email}` : 'Захиалга ба бүтээгдэхүүн'}
             </p>
@@ -2239,22 +2329,22 @@ function AdminPanel({
               </span>
             )}
           </button>
-          <button
+          {!readOnly && <button
             onClick={() => setTab('products')}
             className={`inline-flex items-center gap-2 text-[13px] font-medium rounded-full px-5 py-2.5 transition-colors ${
               tab === 'products' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:text-gray-900'
             }`}
           >
             <Package size={14} /> Бүтээгдэхүүн ({products.length})
-          </button>
-          <button
+          </button>}
+          {!readOnly && <button
             onClick={() => setTab('users')}
             className={`inline-flex items-center gap-2 text-[13px] font-medium rounded-full px-5 py-2.5 transition-colors ${
               tab === 'users' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:text-gray-900'
             }`}
           >
             <Bell size={14} /> Хэрэглэгчид
-          </button>
+          </button>}
         </div>
 
         {tab === 'users' ? (
@@ -2325,6 +2415,9 @@ function AdminPanel({
                       </p>
                       {u.address && <p className="truncate text-[11.5px] text-gray-400">📍 {u.address}</p>}
                     </div>
+                    <button onClick={() => { void toggleEmployee(u.id) }} className="shrink-0 rounded-full border border-gray-300 px-3 py-1.5 text-[11.5px]">
+                      {employeeIds.includes(u.id) ? 'Ажилтны эрх хасах' : 'Ажилтан болгох'}
+                    </button>
                     <button
                       onClick={() => setNotifTarget(u)}
                       className="shrink-0 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-600 border border-blue-300 rounded-full px-3.5 py-1.5 hover:bg-blue-50 transition-colors"
@@ -2362,6 +2455,11 @@ function AdminPanel({
                               {o.paymentMethod === 'qpay' ? 'QPay' : 'Шилжүүлэг'}
                             </span>
                           )}
+                          {o.paymentMethod === 'qpay' && (
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {o.paymentStatus === 'paid' ? 'QPay төлбөр төлөгдсөн' : 'Төлбөр хүлээгдэж байна'}
+                            </span>
+                          )}
                           {o.status === 'new' ? (
                             <span className="bg-blue-500 text-white text-[10px] font-bold rounded-full px-2 py-0.5">ШИНЭ</span>
                           ) : (
@@ -2385,7 +2483,7 @@ function AdminPanel({
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
                         <span className="text-[15px] font-bold text-gray-900">{fmt(o.total)}</span>
-                        {o.status === 'new' ? (
+                        {!readOnly && (o.status === 'new' ? (
                           <button
                             onClick={() => setOrderStatus(o.id, 'done')}
                             className="text-[11.5px] font-medium text-green-600 border border-green-300 rounded-full px-3 py-1 hover:bg-green-50"
@@ -2399,7 +2497,7 @@ function AdminPanel({
                           >
                             Буцаах
                           </button>
-                        )}
+                        ))}
                       </div>
                     </div>
                   </li>
@@ -2590,6 +2688,7 @@ function App() {
   const [route, setRoute] = useState(window.location.hash)
   const [session, setSession] = useState<Session | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isStaff, setIsStaff] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [notifs, setNotifs] = useState<Notif[]>([])
   const [seenIds, setSeenIds] = useState<string[]>(() => loadJson<string[]>(SEEN_NOTIFS_KEY, []))
@@ -2674,6 +2773,7 @@ function App() {
   useEffect(() => {
     if (!supabase || !session) {
       setIsAdmin(false)
+      setIsStaff(false)
       setProfile(null)
       setNotifs([])
       return
@@ -2684,9 +2784,9 @@ function App() {
       .eq('user_id', session.user.id)
       .maybeSingle()
       .then(({ data, error }) => {
-        // admins хүснэгт үүсээгүй бол хуучин горим: нэвтэрсэн хүн админ
-        setIsAdmin(error ? true : !!data)
+        setIsAdmin(!error && !!data)
       })
+    supabase.from('employees').select('user_id').eq('user_id', session.user.id).maybeSingle().then(({ data }) => setIsStaff(!!data))
     reloadProfile()
     reloadNotifs()
     const ch = supabase
@@ -2732,13 +2832,13 @@ function App() {
         reloadProfile={reloadProfile}
         notifs={notifs}
         markAllRead={markAllRead}
-        isAdmin={isAdmin}
+        isAdmin={isAdmin || isStaff}
       />
     )
   }
 
   if (route === '#admin') {
-    if (supabase && session && !isAdmin) {
+    if (supabase && session && !isAdmin && !isStaff) {
       return (
         <div className="min-h-screen bg-[#f0f0ee] flex flex-col items-center justify-center gap-4 px-6">
           <Logo size={56} />
@@ -2749,7 +2849,7 @@ function App() {
         </div>
       )
     }
-    return <AdminPanel products={products} reloadProducts={reloadProducts} session={session} />
+    return <AdminPanel products={products} reloadProducts={reloadProducts} session={session} readOnly={!!supabase && !isAdmin} />
   }
 
   return (
@@ -2832,7 +2932,7 @@ function App() {
                           </span>
                         )}
                       </a>
-                      {isAdmin && (
+                      {(isAdmin || isStaff) && (
                         <a
                           href="#admin"
                           onClick={() => setProfileMenuOpen(false)}
