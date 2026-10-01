@@ -117,6 +117,9 @@ type Order = {
   deliveryPreference?: string
 }
 
+type UserRole = 'admin' | 'employee' | 'customer'
+const ROLE_LABELS: Record<UserRole, string> = { admin: 'Админ', employee: 'Ажилтан', customer: 'Хэрэглэгч' }
+
 type Profile = {
   id: string
   email?: string
@@ -1960,11 +1963,15 @@ function AdminPanel({
   readOnly?: boolean
 }) {
   const [tab, setTab] = useState<'orders' | 'products' | 'users'>('orders')
+  useEffect(() => { if (readOnly) setTab('orders') }, [readOnly])
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersError, setOrdersError] = useState('')
   const [users, setUsers] = useState<Profile[]>([])
   const [usersError, setUsersError] = useState('')
-  const [employeeIds, setEmployeeIds] = useState<string[]>([])
+  const [userRoles, setUserRoles] = useState<Record<string, UserRole>>({})
+  const [rolesLoaded, setRolesLoaded] = useState(false)
+  const [roleBusy, setRoleBusy] = useState<string | null>(null)
+  const [roleMessage, setRoleMessage] = useState('')
   const [notifTarget, setNotifTarget] = useState<Profile | 'all' | null>(null)
   const [notifTitle, setNotifTitle] = useState('')
   const [notifBody, setNotifBody] = useState('')
@@ -2057,19 +2064,43 @@ function AdminPanel({
       })
   }, [tab, session])
 
-  useEffect(() => {
+  const loadUserRoles = useCallback(async () => {
     if (!supabase || !session || readOnly) return
-    supabase.from('employees').select('user_id').then(({ data }) => setEmployeeIds((data ?? []).map(r => r.user_id)))
+    const { data, error } = await supabase.rpc('ampm_list_user_roles')
+    if (error) {
+      setRolesLoaded(false)
+      setUsersError('Хэрэглэгчийн эрх ачаалахад алдаа гарлаа: ' + error.message)
+      return
+    }
+    const next: Record<string, UserRole> = {}
+    for (const row of data ?? []) next[row.user_id] = row.user_role as UserRole
+    setUserRoles(next)
+    setRolesLoaded(true)
   }, [session, readOnly])
 
-  const toggleEmployee = async (id: string) => {
-    if (!supabase || readOnly) return
-    const exists = employeeIds.includes(id)
-    const { error } = exists
-      ? await supabase.from('employees').delete().eq('user_id', id)
-      : await supabase.from('employees').insert({ user_id: id })
-    if (error) setUsersError('Ажилтны эрх өөрчлөхөд алдаа гарлаа: ' + error.message)
-    else setEmployeeIds(prev => exists ? prev.filter(x => x !== id) : [...prev, id])
+  useEffect(() => {
+    if (tab === 'users') void loadUserRoles()
+  }, [tab, loadUserRoles])
+
+  const changeUserRole = async (id: string, role: UserRole) => {
+    if (!supabase || readOnly || roleBusy) return
+    setRoleBusy(id)
+    setUsersError('')
+    setRoleMessage('')
+    try {
+      const { error } = await supabase.rpc('ampm_set_user_role', { p_user_id: id, p_role: role })
+      if (error) {
+        setUsersError(error.message.includes('last administrator')
+          ? 'Сүүлийн админы эрхийг хасах боломжгүй. Эхлээд өөр хэрэглэгчид админ эрх олгоно уу.'
+          : 'Эрх өөрчлөхөд алдаа гарлаа: ' + error.message)
+        return
+      }
+      setUserRoles(prev => ({ ...prev, [id]: role }))
+      setRoleMessage(`Эрхийг «${ROLE_LABELS[role]}» болгож шинэчиллээ.`)
+      window.dispatchEvent(new Event('ampm-roles-changed'))
+    } catch {
+      setUsersError('Эрх өөрчлөхөд алдаа гарлаа. Дахин оролдоно уу.')
+    } finally { setRoleBusy(null) }
   }
 
   const sendNotif = async (e: React.FormEvent) => {
@@ -2400,24 +2431,41 @@ function AdminPanel({
             {users.length === 0 && !usersError ? (
               <p className="text-[13px] text-gray-500">Одоогоор бүртгэлтэй хэрэглэгч алга.</p>
             ) : (
+              <>
+              {roleMessage && <p role="status" className="mb-3 text-[12px] text-green-700">{roleMessage}</p>}
               <ul className="space-y-3">
                 {users.map((u) => (
-                  <li key={u.id} className="flex items-center gap-4 bg-white rounded-2xl p-4">
+                  <li key={u.id} className="flex flex-wrap items-center gap-3 bg-white rounded-2xl p-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[14px] font-bold text-gray-600">
                       {(u.name || u.email || '?').slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13.5px] font-semibold text-gray-900">
                         {u.name || 'Нэргүй хэрэглэгч'}
+                        <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                          {rolesLoaded ? ROLE_LABELS[userRoles[u.id] ?? 'customer'] : 'Эрх ачаалж байна…'}
+                        </span>
                       </p>
                       <p className="truncate text-[12px] text-gray-500">
                         {[u.email, u.phone].filter(Boolean).join(' · ') || '—'}
                       </p>
                       {u.address && <p className="truncate text-[11.5px] text-gray-400">📍 {u.address}</p>}
                     </div>
-                    <button onClick={() => { void toggleEmployee(u.id) }} className="shrink-0 rounded-full border border-gray-300 px-3 py-1.5 text-[11.5px]">
-                      {employeeIds.includes(u.id) ? 'Ажилтны эрх хасах' : 'Ажилтан болгох'}
-                    </button>
+                    <label className="flex shrink-0 flex-col gap-1 text-[11px] text-gray-500">
+                      Эрх өөрчлөх
+                      <select
+                        aria-label={`${u.name || u.email || 'Хэрэглэгч'} — эрх`}
+                        value={userRoles[u.id] ?? 'customer'}
+                        disabled={!rolesLoaded || roleBusy !== null}
+                        onChange={e => { void changeUserRole(u.id, e.target.value as UserRole) }}
+                        className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-[12px] text-gray-800 disabled:opacity-50"
+                      >
+                        <option value="customer">Хэрэглэгч</option>
+                        <option value="employee">Ажилтан</option>
+                        <option value="admin">Админ</option>
+                      </select>
+                      {roleBusy === u.id && <span role="status">Хадгалж байна…</span>}
+                    </label>
                     <button
                       onClick={() => setNotifTarget(u)}
                       className="shrink-0 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-blue-600 border border-blue-300 rounded-full px-3.5 py-1.5 hover:bg-blue-50 transition-colors"
@@ -2427,6 +2475,7 @@ function AdminPanel({
                   </li>
                 ))}
               </ul>
+              </>
             )}
           </div>
         ) : tab === 'orders' ? (
@@ -2778,15 +2827,19 @@ function App() {
       setNotifs([])
       return
     }
-    supabase
-      .from('admins')
-      .select('user_id')
-      .eq('user_id', session.user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        setIsAdmin(!error && !!data)
-      })
-    supabase.from('employees').select('user_id').eq('user_id', session.user.id).maybeSingle().then(({ data }) => setIsStaff(!!data))
+    let active = true
+    const refreshRoles = async () => {
+      const [admin, employee] = await Promise.all([
+        supabase!.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle(),
+        supabase!.from('employees').select('user_id').eq('user_id', session.user.id).maybeSingle(),
+      ])
+      if (!active) return
+      setIsAdmin(!admin.error && !!admin.data)
+      setIsStaff(!employee.error && !!employee.data)
+    }
+    void refreshRoles()
+    window.addEventListener('ampm-roles-changed', refreshRoles)
+    window.addEventListener('focus', refreshRoles)
     reloadProfile()
     reloadNotifs()
     const ch = supabase
@@ -2796,6 +2849,9 @@ function App() {
       })
       .subscribe()
     return () => {
+      active = false
+      window.removeEventListener('ampm-roles-changed', refreshRoles)
+      window.removeEventListener('focus', refreshRoles)
       supabase?.removeChannel(ch)
     }
   }, [session, reloadProfile, reloadNotifs])
