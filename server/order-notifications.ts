@@ -42,6 +42,8 @@ type Order = {
   items: { name: string; price: number; qty: number }[];
   total: number;
   payment_method: string | null;
+  payment_status?: string;
+  paid_at?: string | null;
   status: string;
   created_at: string;
 };
@@ -139,23 +141,26 @@ export function emailPayload(order: Order, sender: string, recipient: string): E
   const hasCoordinates = typeof order.lat === "number" && Number.isFinite(order.lat) &&
     Math.abs(order.lat) <= 90 && typeof order.lng === "number" && Number.isFinite(order.lng) && Math.abs(order.lng) <= 180;
   const mapUrl = hasCoordinates ? `https://www.google.com/maps/search/?api=1&query=${order.lat},${order.lng}` : null;
-  const note = "Захиалга бүртгэгдсэн. Энэ мэдэгдэл нь төлбөр төлөгдсөнийг батлахгүй. Хүргүүлэх өдөр, цаг нь хэрэглэгчийн хүсэлт бөгөөд хүргэлтийн ажилтан холбогдож баталгаажуулна.";
+  const paid = order.payment_method === "qpay" && order.payment_status === "paid" && !!order.paid_at;
+  const headline = paid ? "QPay-ээр төлбөр төлөгдлөө" : "Шинэ захиалга ирлээ";
+  if (paid) rows.push(["Төлбөр баталгаажсан цаг (Улаанбаатар)", new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ulaanbaatar", dateStyle: "medium", timeStyle: "short" }).format(new Date(order.paid_at!))]);
+  const note = paid ? "QPay-ийн серверээс төлбөрийн дүн, төлөвийг шалгаж баталгаажуулсан." : "Захиалга бүртгэгдсэн. Энэ мэдэгдэл нь төлбөр төлөгдсөнийг батлахгүй. Хүргүүлэх өдөр, цаг нь хэрэглэгчийн хүсэлт бөгөөд хүргэлтийн ажилтан холбогдож баталгаажуулна.";
   const text = [
-    "AM/PM - Шинэ захиалга", ...rows.map(([label, value]) => `${label}: ${value}`),
+    `AM/PM - ${headline}`, ...rows.map(([label, value]) => `${label}: ${value}`),
     ...(mapUrl ? [`Газрын зураг: ${mapUrl}`] : []), "",
     ...order.items.map((item) => `${item.name} | ${item.qty} x ${money(item.price)} = ${money(item.qty * item.price)}`),
     `Нийт дүн: ${money(order.total)}`, "", note, "Админ: https://ampm.mn/#admin",
   ].join("\n");
   const html = `<!doctype html><html lang="mn"><body style="margin:0;background:#f3f4f6;font-family:Arial,sans-serif;color:#18221c">
 <div style="max-width:680px;margin:0 auto;padding:24px 16px"><div style="padding:24px;background:#fff;border:1px solid #dfe5e1;border-radius:8px">
-<p style="margin:0 0 8px;font-weight:bold;color:#137b45">AM/PM</p><h1 style="font-size:24px;margin:0 0 20px">Шинэ захиалга ирлээ</h1>
+<p style="margin:0 0 8px;font-weight:bold;color:#137b45">AM/PM</p><h1 style="font-size:24px;margin:0 0 20px">${headline}</h1>
 <table style="width:100%;border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:8px 4px;border-bottom:1px solid #eee;vertical-align:top">${escapeHtml(label)}</td><td style="padding:8px 4px;border-bottom:1px solid #eee;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join("")}</table>
 ${mapUrl ? `<p><a href="${escapeHtml(mapUrl)}">Хүргэлтийн байршлыг харах</a></p>` : ""}
 <h2 style="font-size:18px;margin-top:24px">Захиалсан бүтээгдэхүүн</h2><table style="width:100%;border-collapse:collapse;text-align:left"><thead><tr><th style="padding:8px 4px">Бүтээгдэхүүн</th><th style="padding:8px 4px">Тоо</th><th style="padding:8px 4px">Нэгж үнэ</th><th style="padding:8px 4px">Дүн</th></tr></thead><tbody>
 ${order.items.map((item) => `<tr><td style="padding:8px 4px;border-top:1px solid #eee;overflow-wrap:anywhere">${escapeHtml(item.name)}</td><td style="padding:8px 4px;border-top:1px solid #eee">${item.qty}</td><td style="padding:8px 4px;border-top:1px solid #eee">${money(item.price)}</td><td style="padding:8px 4px;border-top:1px solid #eee">${money(item.price * item.qty)}</td></tr>`).join("")}</tbody></table>
 <p style="text-align:right;font-size:20px;font-weight:bold">Нийт дүн: ${money(order.total)}</p><p style="font-size:13px;color:#555">${note}</p><p><a href="https://ampm.mn/#admin" style="color:#137b45">Админ хэсэг</a></p>
 </div></div></body></html>`;
-  return { from: sender, to: [recipient], subject: `AM/PM шинэ захиалга #${order.id.slice(0, 8)}`, html, text };
+  return { from: sender, to: [recipient], subject: `AM/PM ${paid ? "QPay төлбөр баталгаажлаа" : "шинэ захиалга"} #${order.id.slice(0, 8)}`, html, text };
 }
 
 type Outcome = { ok: boolean; permanent?: boolean };

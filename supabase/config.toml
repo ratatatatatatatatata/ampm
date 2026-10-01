@@ -1,0 +1,9 @@
+# Guest invoice/status calls use an unguessable checkout capability.
+[functions.qpay-invoice]
+verify_jwt = false
+[functions.qpay-status]
+verify_jwt = false
+# QPay callback uses a separate server-only per-invoice capability and
+# checks the stored invoice against authenticated merchant payment/check.
+[functions.qpay-callback]
+verify_jwt = false
