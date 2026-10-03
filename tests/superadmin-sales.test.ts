@@ -36,6 +36,7 @@ async function setup(t: { after: (fn: () => Promise<void>) => void }) {
   `)
   await db.exec(readFileSync(new URL('../supabase/migrations/20261001065603_admin_user_role_management.sql', import.meta.url), 'utf8'))
   await db.exec(migration)
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261003133156_sales_exclude_delivery_line.sql', import.meta.url), 'utf8'))
   await db.exec(`update public.admins set role='superadmin' where user_id='${owner}'`)
   return db
 }
@@ -83,8 +84,8 @@ test('sales RPC denies employees, customers, NULL identity and anonymous callers
 test('both admin tiers see complete aggregates; delivered/pending never counts as confirmed payment', async t => {
   const db = await setup(t)
   await db.exec(`insert into public.orders(total,items,created_at,status,payment_status) values
-    (31000,'[{"name":"Brush","qty":1,"price":25000}]','2026-10-02T16:00:00Z','new','paid'),
-    (56000,'[{"name":"Brush","qty":2,"price":25000}]','2026-10-03T15:59:59Z','done','paid'),
+    (31000,'[{"name":"Brush","qty":1,"price":25000},{"name":"Хүргэлтийн төлбөр","qty":1,"price":6000}]','2026-10-02T16:00:00Z','new','paid'),
+    (56000,'[{"name":"Brush","qty":2,"price":25000},{"name":"Хүргэлтийн төлбөр","qty":1,"price":6000}]','2026-10-03T15:59:59Z','done','paid'),
     (99000,'[{"name":"Not paid","qty":3,"price":31000}]','2026-10-03T00:00:00Z','done','pending'),
     (1,'[]','2026-10-03T16:00:00Z','new','paid'),
     (1,'[]','2026-10-02T15:59:59Z','new','paid');`)
