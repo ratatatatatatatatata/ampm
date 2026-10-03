@@ -30,6 +30,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+import { SalesReport } from './components/SalesReport'
 
 /** AM/PM — гэр бүлийн дүрст тэмдэг (хэрэглэгчийн өгсөн жинхэнэ лого зураг) */
 function Logo({ size = 36 }: { size?: number }) {
@@ -117,8 +118,8 @@ type Order = {
   deliveryPreference?: string
 }
 
-type UserRole = 'admin' | 'employee' | 'customer'
-const ROLE_LABELS: Record<UserRole, string> = { admin: 'Админ', employee: 'Ажилтан', customer: 'Хэрэглэгч' }
+type UserRole = 'superadmin' | 'admin' | 'employee' | 'customer'
+const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Суперадмин', admin: 'Админ', employee: 'Ажилтан', customer: 'Хэрэглэгч' }
 
 type Profile = {
   id: string
@@ -1956,13 +1957,15 @@ function AdminPanel({
   reloadProducts,
   session,
   readOnly = false,
+  isSuperAdmin = false,
 }: {
   products: Product[]
   reloadProducts: () => Promise<void>
   session: Session | null
   readOnly?: boolean
+  isSuperAdmin?: boolean
 }) {
-  const [tab, setTab] = useState<'orders' | 'products' | 'users'>('orders')
+  const [tab, setTab] = useState<'orders' | 'sales' | 'products' | 'users'>('orders')
   useEffect(() => { if (readOnly) setTab('orders') }, [readOnly])
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersError, setOrdersError] = useState('')
@@ -2083,14 +2086,16 @@ function AdminPanel({
   }, [tab, loadUserRoles])
 
   const changeUserRole = async (id: string, role: UserRole) => {
-    if (!supabase || readOnly || roleBusy) return
+    if (!supabase || readOnly || roleBusy || userRoles[id] === 'superadmin') return
     setRoleBusy(id)
     setUsersError('')
     setRoleMessage('')
     try {
       const { error } = await supabase.rpc('ampm_set_user_role', { p_user_id: id, p_role: role })
       if (error) {
-        setUsersError(error.message.includes('last administrator')
+        setUsersError(error.message.includes('Superadmin role is protected')
+          ? 'Суперадмины эрх хамгаалагдсан. Эндээс өөрчлөх боломжгүй.'
+          : error.message.includes('last administrator')
           ? 'Сүүлийн админы эрхийг хасах боломжгүй. Эхлээд өөр хэрэглэгчид админ эрх олгоно уу.'
           : 'Эрх өөрчлөхөд алдаа гарлаа: ' + error.message)
         return
@@ -2317,7 +2322,7 @@ function AdminPanel({
         <div className="flex items-center gap-3 mb-4">
           <Logo size={44} />
           <div>
-            <h1 className="text-[1.4rem] font-medium text-gray-900 tracking-tight">{readOnly ? 'Ажилтны панель' : 'Админ панель'}</h1>
+            <h1 className="text-[1.4rem] font-medium text-gray-900 tracking-tight">{readOnly ? 'Ажилтны панель' : isSuperAdmin ? 'Суперадмин панель' : 'Админ панель'}</h1>
             <p className="text-[12.5px] text-gray-500">
               {session?.user?.email ? `Нэвтэрсэн: ${session.user.email}` : 'Захиалга ба бүтээгдэхүүн'}
             </p>
@@ -2346,7 +2351,7 @@ function AdminPanel({
         )}
 
         {/* tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-6">
           <button
             onClick={() => setTab('orders')}
             className={`inline-flex items-center gap-2 text-[13px] font-medium rounded-full px-5 py-2.5 transition-colors ${
@@ -2360,6 +2365,14 @@ function AdminPanel({
               </span>
             )}
           </button>
+          {!readOnly && <button
+            onClick={() => setTab('sales')}
+            className={`inline-flex items-center gap-2 text-[13px] font-medium rounded-full px-5 py-2.5 transition-colors ${
+              tab === 'sales' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Борлуулалт
+          </button>}
           {!readOnly && <button
             onClick={() => setTab('products')}
             className={`inline-flex items-center gap-2 text-[13px] font-medium rounded-full px-5 py-2.5 transition-colors ${
@@ -2378,7 +2391,7 @@ function AdminPanel({
           </button>}
         </div>
 
-        {tab === 'users' ? (
+        {tab === 'sales' ? (!readOnly ? <SalesReport revision={orders} /> : null) : tab === 'users' ? (
           <div className="rounded-3xl p-6 sm:p-8" style={{ backgroundColor: '#EDEDED' }}>
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-[15px] font-semibold text-gray-900">Хэрэглэгчид ({users.length})</h2>
@@ -2456,14 +2469,16 @@ function AdminPanel({
                       <select
                         aria-label={`${u.name || u.email || 'Хэрэглэгч'} — эрх`}
                         value={userRoles[u.id] ?? 'customer'}
-                        disabled={!rolesLoaded || roleBusy !== null}
+                        disabled={!rolesLoaded || roleBusy !== null || userRoles[u.id] === 'superadmin'}
                         onChange={e => { void changeUserRole(u.id, e.target.value as UserRole) }}
                         className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-[12px] text-gray-800 disabled:opacity-50"
                       >
+                        {userRoles[u.id] === 'superadmin' && <option value="superadmin">Суперадмин</option>}
                         <option value="customer">Хэрэглэгч</option>
                         <option value="employee">Ажилтан</option>
                         <option value="admin">Админ</option>
                       </select>
+                      {userRoles[u.id] === 'superadmin' && <span>Хамгаалагдсан эрх</span>}
                       {roleBusy === u.id && <span role="status">Хадгалж байна…</span>}
                     </label>
                     <button
@@ -2737,6 +2752,7 @@ function App() {
   const [route, setRoute] = useState(window.location.hash)
   const [session, setSession] = useState<Session | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [isStaff, setIsStaff] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [notifs, setNotifs] = useState<Notif[]>([])
@@ -2822,6 +2838,7 @@ function App() {
   useEffect(() => {
     if (!supabase || !session) {
       setIsAdmin(false)
+      setIsSuperAdmin(false)
       setIsStaff(false)
       setProfile(null)
       setNotifs([])
@@ -2830,11 +2847,12 @@ function App() {
     let active = true
     const refreshRoles = async () => {
       const [admin, employee] = await Promise.all([
-        supabase!.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle(),
+        supabase!.from('admins').select('user_id,role').eq('user_id', session.user.id).maybeSingle(),
         supabase!.from('employees').select('user_id').eq('user_id', session.user.id).maybeSingle(),
       ])
       if (!active) return
       setIsAdmin(!admin.error && !!admin.data)
+      setIsSuperAdmin(!admin.error && admin.data?.role === 'superadmin')
       setIsStaff(!employee.error && !!employee.data)
     }
     void refreshRoles()
@@ -2905,7 +2923,7 @@ function App() {
         </div>
       )
     }
-    return <AdminPanel products={products} reloadProducts={reloadProducts} session={session} readOnly={!!supabase && !isAdmin} />
+    return <AdminPanel key={session?.user.id ?? 'local'} products={products} reloadProducts={reloadProducts} session={session} readOnly={!!supabase && !isAdmin} isSuperAdmin={isSuperAdmin} />
   }
 
   return (
