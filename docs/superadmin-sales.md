@@ -15,7 +15,7 @@
 
 1. Run build, server/client typecheck, lint, and the full tests.
 2. Verify the mobile/desktop UI and preview build.
-3. Apply the additive `20261003130649_superadmin_sales_reporting.sql` migration, then `20261003133156_sales_exclude_delivery_line.sql`. Neither changes orders or memberships. The follow-up excludes the checkout's delivery-fee item from product counts/amounts, while retaining it in order/payment totals.
+3. Apply the additive `20261003133021_superadmin_sales_reporting.sql` migration, then `20261003133409_sales_exclude_delivery_line.sql`. Neither changes orders or memberships. The follow-up excludes the checkout's delivery-fee item from product counts/amounts, while retaining it in order/payment totals. Filenames match the provider-assigned production migration ledger; do not reapply these to that project.
 4. Deploy the frontend and verify its custom domain and commit.
 5. Promote only the owner-approved existing accounts through a separately authorized transaction; verify the exact roles afterwards.
 6. Verify real database authorization and report aggregates using read-only transactions and existing identities. Do not submit test orders or send notifications.

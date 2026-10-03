@@ -8,7 +8,7 @@ const owner = '11111111-1111-4111-8111-111111111111'
 const admin = '22222222-2222-4222-8222-222222222222'
 const employee = '33333333-3333-4333-8333-333333333333'
 const customer = '44444444-4444-4444-8444-444444444444'
-const migration = readFileSync(new URL('../supabase/migrations/20261003130649_superadmin_sales_reporting.sql', import.meta.url), 'utf8')
+const migration = readFileSync(new URL('../supabase/migrations/20261003133021_superadmin_sales_reporting.sql', import.meta.url), 'utf8')
 async function setup(t: { after: (fn: () => Promise<void>) => void }) {
   const db = new PGlite(); t.after(() => db.close())
   await db.exec(`
@@ -36,7 +36,7 @@ async function setup(t: { after: (fn: () => Promise<void>) => void }) {
   `)
   await db.exec(readFileSync(new URL('../supabase/migrations/20261001065603_admin_user_role_management.sql', import.meta.url), 'utf8'))
   await db.exec(migration)
-  await db.exec(readFileSync(new URL('../supabase/migrations/20261003133156_sales_exclude_delivery_line.sql', import.meta.url), 'utf8'))
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261003133409_sales_exclude_delivery_line.sql', import.meta.url), 'utf8'))
   await db.exec(`update public.admins set role='superadmin' where user_id='${owner}'`)
   return db
 }
