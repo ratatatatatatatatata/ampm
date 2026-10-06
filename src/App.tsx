@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { SalesReport } from './components/SalesReport'
+import { PENDING_QPAY_KEY, parsePendingQpay, checkoutStepForOpen, viewAfterPayment, type CheckoutStep } from './lib/checkout'
 
 /** AM/PM — гэр бүлийн дүрст тэмдэг (хэрэглэгчийн өгсөн жинхэнэ лого зураг) */
 function Logo({ size = 36 }: { size?: number }) {
@@ -422,6 +423,8 @@ type FitMode = 'cover' | 'contain'
 
 function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: string) => void }) {
   const [img, setImg] = useState<HTMLImageElement | null>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
+  const [previewScale, setPreviewScale] = useState(1)
   const [mode, setMode] = useState<FitMode>('cover')
   const [zoom, setZoom] = useState(1)
   const [off, setOff] = useState({ x: 0, y: 0 })
@@ -498,6 +501,14 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [img])
 
+  useEffect(() => {
+    const preview = previewRef.current
+    if (!preview) return
+    const observer = new ResizeObserver(([entry]) => setPreviewScale(entry.contentRect.width / ADJ_W))
+    observer.observe(preview)
+    return () => observer.disconnect()
+  }, [img])
+
   const switchMode = (m: FitMode) => {
     setMode(m)
     setZoom(1)
@@ -512,7 +523,7 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragRef.current) return
     const d = dragRef.current
-    setOff(clampOff(d.ox + (e.clientX - d.x), d.oy + (e.clientY - d.y)))
+    setOff(clampOff(d.ox + (e.clientX - d.x) / previewScale, d.oy + (e.clientY - d.y) / previewScale))
   }
   const onPointerUp = () => {
     if (!dragRef.current) return
@@ -534,7 +545,7 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
       <p className="text-[12px] font-medium text-gray-700 mb-2">
         Картан дээр хэрхэн харагдахыг тохируулна уу — зургийг чирж байрлуулж, доорх гулсагчаар томруулна
       </p>
-      <div className="flex gap-2 mb-3">
+      <div className="flex flex-wrap gap-2 mb-3">
         <button
           type="button"
           onClick={() => switchMode('contain')}
@@ -558,9 +569,10 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
           Тайрч дүүргэх
         </button>
       </div>
+      <div ref={previewRef} className="relative aspect-[4/3] w-full max-w-[320px] overflow-hidden rounded-xl border border-gray-200">
       <div
-        className="relative overflow-hidden rounded-xl bg-white border border-gray-200 cursor-grab active:cursor-grabbing touch-none select-none"
-        style={{ width: ADJ_W, height: ADJ_H }}
+        className="absolute left-0 top-0 overflow-hidden bg-white cursor-grab active:cursor-grabbing touch-none select-none"
+        style={{ width: ADJ_W, height: ADJ_H, transform: `scale(${previewScale})`, transformOrigin: 'top left' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -580,7 +592,8 @@ function ImageAdjuster({ src, onAdjusted }: { src: string; onAdjusted: (out: str
         />
         <div className="absolute inset-0 ring-2 ring-inset ring-blue-400/60 rounded-xl pointer-events-none" />
       </div>
-      <div className="mt-3 flex items-center gap-3" style={{ width: ADJ_W }}>
+      </div>
+      <div className="mt-3 flex w-full max-w-[320px] items-center gap-3">
         <span className="text-[11px] text-gray-500">Томруулах</span>
         <input
           type="range"
@@ -786,7 +799,7 @@ function ShopCard({ p, onView, onAdd }: { p: Product; onView: () => void; onAdd:
   return (
     <div
       onClick={onView}
-      className="group relative flex cursor-pointer flex-col rounded-2xl bg-white p-3 transition-shadow hover:shadow-md"
+      className="group relative flex min-w-0 cursor-pointer flex-col rounded-2xl bg-white p-3 transition-shadow hover:shadow-md"
     >
       <div className="relative mb-2.5 aspect-square overflow-hidden rounded-xl bg-gray-50">
         {p.image ? (
@@ -805,7 +818,7 @@ function ShopCard({ p, onView, onAdd }: { p: Product; onView: () => void; onAdd:
         )}
       </div>
       <p className="line-clamp-2 text-[12.5px] leading-snug text-gray-700">{p.name}</p>
-      <div className="mt-auto flex items-end justify-between pt-1.5">
+      <div className="mt-auto flex flex-wrap items-end justify-between gap-1.5 pt-1.5">
         <p className="text-[14px] font-bold text-gray-900">{fmt(p.price)}</p>
         <button
           onClick={(e) => {
@@ -845,14 +858,21 @@ function CartDrawer({
   session: Session | null
   profile: Profile | null
 }) {
-  const [step, setStep] = useState<'cart' | 'checkout' | 'done' | 'qpay' | 'paid'>('cart')
+  const [step, setStep] = useState<CheckoutStep>('cart')
+  const cartHasItems = useRef(cart.length > 0)
+  cartHasItems.current = cart.length > 0
   const [contact, setContact] = useState('')
   const [address, setAddress] = useState('')
   const [deliveryPreference, setDeliveryPreference] = useState('')
   const [latLng, setLatLng] = useState<{ lat: number; lng: number } | null>(null)
   const [payMethod, setPayMethod] = useState<'transfer' | 'qpay'>('transfer')
   const [qpayData, setQpayData] = useState<QpayData | null>(null)
-  const [paymentOrder, setPaymentOrder] = useState<{ orderId: string; checkoutToken: string } | null>(null)
+  const [paymentOrder, setPaymentOrder] = useState<{ orderId: string; checkoutToken: string } | null>(() => {
+    const pending = parsePendingQpay(loadJson<unknown>(PENDING_QPAY_KEY, null))
+    return pending ? { orderId: pending.orderId, checkoutToken: pending.checkoutToken } : null
+  })
+  const activePayment = useRef(paymentOrder)
+  activePayment.current = paymentOrder
   const [paymentMessage, setPaymentMessage] = useState('Төлбөр баталгаажихыг хүлээж байна.')
   const checkingPayment = useRef(false)
 
@@ -870,40 +890,68 @@ function CartDrawer({
 
   useEffect(() => {
     if (!open) return
-    const pending = loadJson<{ orderId: string; checkoutToken: string; total: number; data: QpayData } | null>('ampm-pending-qpay', null)
-    if (pending) {
+    const raw = loadJson<unknown>(PENDING_QPAY_KEY, null)
+    const pending = parsePendingQpay(raw)
+    if (raw && !pending) localStorage.removeItem(PENDING_QPAY_KEY)
+    const next = checkoutStepForOpen(cartHasItems.current, pending)
+    setStep(next)
+    setError('')
+    if (next === 'qpay' && pending) {
       setPaymentOrder({ orderId: pending.orderId, checkoutToken: pending.checkoutToken })
       setQpayData(pending.data)
       setDoneTotal(pending.total)
-      setStep('qpay')
-    } else setStep('cart')
+    }
   }, [open])
 
   const checkPayment = useCallback(async () => {
     if (!supabase || !paymentOrder || checkingPayment.current) return
+    const order = paymentOrder
     checkingPayment.current = true
     try {
-      const { data, error } = await supabase.functions.invoke('qpay-status', { body: paymentOrder })
+      const { data, error } = await supabase.functions.invoke('qpay-status', { body: order })
+      // A late response for an older invoice must not change a new checkout.
+      if (activePayment.current?.orderId !== order.orderId) return
       if (error || data?.error) {
         setPaymentMessage('Төлбөрийн төлөв шалгахад алдаа гарлаа. Дахин шалгана уу.')
       } else if (data?.paid === true) {
-        localStorage.removeItem('ampm-pending-qpay')
-        setStep('paid')
+        const saved = parsePendingQpay(loadJson<unknown>(PENDING_QPAY_KEY, null))
+        if (saved?.orderId === order.orderId) localStorage.removeItem(PENDING_QPAY_KEY)
+        const completedOrderId = activePayment.current?.orderId
+        setStep(current => viewAfterPayment(current, order.orderId, completedOrderId))
+        setQpayData(null)
+        activePayment.current = null
+        setPaymentOrder(null)
       } else setPaymentMessage('Төлбөр хараахан баталгаажаагүй байна. Баталгаажмагц автоматаар шинэчлэгдэнэ.')
     } catch {
-      setPaymentMessage('Төлбөрийн төлөв шалгахад алдаа гарлаа. Дахин шалгана уу.')
+      if (activePayment.current?.orderId === order.orderId) {
+        setPaymentMessage('Төлбөрийн төлөв шалгахад алдаа гарлаа. Дахин шалгана уу.')
+      }
     } finally { checkingPayment.current = false }
   }, [paymentOrder])
 
   useEffect(() => {
-    if (!open || step !== 'qpay') return
+    if (!paymentOrder) return
     void checkPayment()
-    // Poll only our status record, never the QPay merchant API.
+    // Check our database even when the drawer is closed. Never poll QPay itself.
     const timer = setInterval(() => { if (!document.hidden) void checkPayment() }, 10000)
-    const onFocus = () => { void checkPayment() }
-    window.addEventListener('focus', onFocus)
-    return () => { clearInterval(timer); window.removeEventListener('focus', onFocus) }
-  }, [open, step, checkPayment])
+    const onReturn = () => { if (!document.hidden) void checkPayment() }
+    window.addEventListener('focus', onReturn)
+    window.addEventListener('pageshow', onReturn)
+    document.addEventListener('visibilitychange', onReturn)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onReturn)
+      window.removeEventListener('pageshow', onReturn)
+      document.removeEventListener('visibilitychange', onReturn)
+    }
+  }, [paymentOrder, checkPayment])
+
+  useEffect(() => {
+    if (!open) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previous }
+  }, [open])
 
   // Профайлын мэдээллээр урьдчилан бөглөнө
   useEffect(() => {
@@ -1003,9 +1051,10 @@ function CartDrawer({
         setBusy(false)
         if (error || data?.error) throw new Error(data?.error ?? error?.message)
         setQpayData(data as QpayData)
+        activePayment.current = { orderId, checkoutToken }
         setPaymentOrder({ orderId, checkoutToken })
         setPaymentMessage('Төлбөр баталгаажихыг хүлээж байна.')
-        saveJson('ampm-pending-qpay', { orderId, checkoutToken, total: grandTotal, data })
+        saveJson(PENDING_QPAY_KEY, { orderId, checkoutToken, total: grandTotal, data })
         setStep('qpay')
         return
       } catch {
@@ -1027,7 +1076,7 @@ function CartDrawer({
   return (
     <>
       <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <aside className="fixed right-0 top-0 z-[90] h-dvh w-full max-w-md bg-[#f7f7f5] shadow-2xl flex flex-col">
+      <aside className="fixed right-0 top-0 z-[90] h-dvh w-full max-w-md bg-[#f7f7f5] shadow-2xl flex flex-col overscroll-contain">
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
           <h3 className="text-[16px] font-semibold text-gray-900 flex items-center gap-2">
             {step === 'checkout' && (
@@ -1048,7 +1097,7 @@ function CartDrawer({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 py-5">
           {step === 'paid' ? (
             <div className="flex flex-col items-center gap-4 py-10 text-center">
               <CheckCircle2 size={48} className="text-green-500" />
@@ -1158,7 +1207,12 @@ function CartDrawer({
                 Түр хаах
               </button>
               <p aria-live="polite" className="text-[12px] text-gray-600">{paymentMessage}</p>
-              <button onClick={() => { void checkPayment() }} className="text-[13px] font-medium text-blue-600 underline">Төлбөрийн төлөв шалгах</button>
+              <button onClick={() => { void checkPayment() }} className="min-h-11 text-[13px] font-medium text-blue-600 underline">Төлбөрийн төлөв шалгах</button>
+              <button onClick={() => {
+                setStep('cart')
+                onClose()
+                document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })
+              }} className="min-h-11 text-[13px] font-medium text-gray-700 underline">Шинэ захиалга эхлүүлэх</button>
             </div>
           ) : step === 'cart' ? (
             lines.length === 0 ? (
@@ -2296,7 +2350,7 @@ function AdminPanel({
     <div className="min-h-screen bg-[#f0f0ee] px-6 sm:px-12 md:px-20 lg:px-28 py-10">
       {/* realtime flash */}
       {flash && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-[13px] px-5 py-3 rounded-full shadow-xl flex items-center gap-2">
+        <div className="fixed top-4 left-1/2 w-[calc(100%_-_2rem)] max-w-lg -translate-x-1/2 z-[100] bg-gray-900 text-white text-[13px] px-5 py-3 rounded-full shadow-xl flex items-center gap-2">
           <BellRing size={15} className="text-amber-300" /> {flash}
         </div>
       )}
@@ -2503,8 +2557,8 @@ function AdminPanel({
                 {orders.map((o) => (
                   <li key={o.id} className="bg-white rounded-2xl p-4">
                     <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="min-w-0">
-                        <p className="text-[13.5px] font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="min-w-0 flex-1 break-words">
+                        <p className="text-[13.5px] font-semibold text-gray-900 flex flex-wrap items-center gap-2">
                           {/^[0-9+\-\s]+$/.test(o.contact) ? (
                             <a href={`tel:${o.contact.replace(/\s/g, '')}`} className="text-blue-600 hover:underline">
                               📞 {o.contact}
@@ -2931,15 +2985,15 @@ function App() {
       {/* ---------- Fixed navbar ---------- */}
       {/* aident.mn маягийн цагаан header бар */}
       <nav className="fixed top-0 inset-x-0 z-50 px-3 sm:px-6 pt-3">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-md">
-          <a href="#" className="flex items-center gap-2.5 shrink-0">
+        <div className="mx-auto flex max-w-6xl items-center gap-1.5 sm:gap-3 rounded-2xl bg-white px-2.5 sm:px-4 py-2.5 shadow-md">
+          <a href="#" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <Logo size={40} />
             <span className="text-[14px] sm:text-[15px] font-bold text-gray-900 whitespace-nowrap">
-              AM/PM шүдний сойз
+              AM/PM<span className="hidden min-[480px]:inline"> шүдний сойз</span>
             </span>
           </a>
 
-          <div className="hidden lg:flex items-center gap-7 mx-auto">
+          <div className="hidden lg:flex items-center gap-4 xl:gap-7 mx-auto">
             {navLinks.map((link) => (
               <a
                 key={link.label}
@@ -2951,7 +3005,7 @@ function App() {
             ))}
           </div>
 
-          <div className="ml-auto lg:ml-0 flex items-center gap-1.5">
+          <div className="ml-auto lg:ml-0 flex shrink-0 items-center gap-0.5 sm:gap-1.5">
             {session && (
               <a
                 href="#profile"
@@ -3067,7 +3121,7 @@ function App() {
 
       {/* ---------- Mobile fullscreen menu ---------- */}
       {menuOpen && (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-[#f0f0ee] lg:hidden">
+        <div className="fixed inset-0 z-[100] flex flex-col overflow-y-auto bg-[#f0f0ee] lg:hidden">
           <div className="flex items-center justify-between px-5 py-5">
             <div className="flex items-center gap-2.5">
               <Logo size={40} />
@@ -3116,7 +3170,7 @@ function App() {
       )}
 
       {/* ---------- Fullscreen video hero ---------- */}
-      <header className="relative min-h-screen overflow-hidden bg-black">
+      <header className="relative min-h-svh overflow-hidden bg-black">
         {/* Хэвтээ бичлэг: өргөн дэлгэцэд шууд дүүргэнэ, босоо утсанд бүдэг
             дэвсгэр дээр бүтнээр нь голлуулна */}
         {wide ? (
@@ -3142,7 +3196,7 @@ function App() {
           className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/60 via-black/25 to-transparent pointer-events-none"
           aria-hidden
         />
-        <div className="relative z-10 flex flex-col min-h-screen">
+        <div className="relative z-10 flex flex-col min-h-svh">
           <div className="flex-1 flex items-end justify-center sm:justify-start pb-12 sm:pb-16 lg:pb-20 px-6 sm:px-12 md:px-20 lg:px-28">
             <div className="max-w-xs text-center sm:text-left">
               <a
@@ -3545,7 +3599,7 @@ function App() {
       {viewProduct && (
         <div className="fixed inset-0 z-[85] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setViewProduct(null)} />
-          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-[#f7f7f5] shadow-2xl">
+          <div className="relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-3xl bg-[#f7f7f5] shadow-2xl">
             <button
               onClick={() => setViewProduct(null)}
               aria-label="Хаах"
@@ -3572,7 +3626,7 @@ function App() {
                   </span>
                 )}
               </div>
-              <div className="mt-5 flex items-center justify-between">
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-[18px] font-bold text-gray-900">{fmt(viewProduct.price)}</span>
                 <button
                   onClick={() => {
