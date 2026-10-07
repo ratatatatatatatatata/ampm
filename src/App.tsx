@@ -32,7 +32,7 @@ import {
 import { supabase } from './lib/supabase'
 import { SalesReport } from './components/SalesReport'
 import { OrderItems } from './components/OrderItems'
-import { catalogColor, snapshotOrderItems, type OrderItem } from '../shared/order-items'
+import { productColor, snapshotOrderItems, type OrderItem } from '../shared/order-items'
 import { PENDING_QPAY_KEY, parsePendingQpay, checkoutStepForOpen, viewAfterPayment, type CheckoutStep } from './lib/checkout'
 
 /** AM/PM — гэр бүлийн дүрст тэмдэг (хэрэглэгчийн өгсөн жинхэнэ лого зураг) */
@@ -818,7 +818,7 @@ function ShopCard({ p, onView, onAdd }: { p: Product; onView: () => void; onAdd:
         )}
       </div>
       <p className="line-clamp-2 text-[12.5px] leading-snug text-gray-700">{p.name}</p>
-      {catalogColor(p.name) && <p className="mt-1 text-[12px] font-medium text-gray-600">Өнгө: {catalogColor(p.name)}</p>}
+      {productColor(p.id) && <p className="mt-1 text-[12px] font-medium text-gray-600">Өнгө: {productColor(p.id)}</p>}
       <div className="mt-auto flex flex-wrap items-end justify-between gap-1.5 pt-1.5">
         <p className="text-[14px] font-bold text-gray-900">{fmt(p.price)}</p>
         <button
@@ -987,13 +987,21 @@ function CartDrawer({
       setError('Хүргэлтийн хаягаа оруулна уу (газрын зургаас сонгох эсвэл бичих).')
       return
     }
+    let items: OrderItem[]
+    try {
+      if (lines.length !== cart.length) throw new Error('Сагсан дахь зарим сойз олдсонгүй. Хуудсаа шинэчлээд өнгө, тоогоо дахин шалгана уу.')
+      items = snapshotOrderItems(lines, DELIVERY_FEE)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Сойзны өнгө, тоог дахин шалгана уу.')
+      return
+    }
     setError('')
     setBusy(true)
 
     const checkoutToken = crypto.randomUUID()
     const order = {
       checkout_token: checkoutToken,
-      items: snapshotOrderItems(lines, DELIVERY_FEE),
+      items,
       total: grandTotal,
       contact: contact.trim(),
       address: address.trim(),
@@ -1243,7 +1251,7 @@ function CartDrawer({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13.5px] font-medium text-gray-900 break-words">{l.name}</p>
-                      <p className="mt-0.5 text-[12px] text-gray-600">Өнгө: {catalogColor(l.name) ?? 'Өнгө бүртгэгдээгүй'} · {l.qty} ширхэг</p>
+                      <p className="mt-0.5 text-[12px] text-gray-600">Өнгө: {productColor(l.id) ?? 'Өнгөө дахин сонгоно уу'} · {l.qty} ширхэг</p>
                       <p className="text-[12.5px] text-gray-500">{fmt(l.price)}</p>
                       <div className="mt-1.5 flex items-center gap-2.5">
                         <button
@@ -1372,7 +1380,7 @@ function CartDrawer({
                   <div key={l.id} className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-[12.5px] text-gray-600 py-1.5">
                     <span className="min-w-0 flex-1 break-words">
                       {l.name}
-                      <span className="block font-medium">{catalogColor(l.name) ?? 'Өнгө бүртгэгдээгүй'} · {l.qty} ширхэг</span>
+                      <span className="block font-medium">{productColor(l.id) ?? 'Өнгөө дахин сонгоно уу'} · {l.qty} ширхэг</span>
                     </span>
                     <span>{fmt(l.price * l.qty)}</span>
                   </div>
@@ -3617,7 +3625,7 @@ function App() {
                 <div>
                   <h3 className="text-[17px] font-semibold text-gray-900">{viewProduct.name}</h3>
                   <p className="mt-1.5 text-[13px] leading-relaxed text-gray-500">{viewProduct.desc}</p>
-                  {catalogColor(viewProduct.name) && <p className="mt-2 text-[13px] font-medium text-gray-700">Өнгө: {catalogColor(viewProduct.name)}</p>}
+                  {productColor(viewProduct.id) && <p className="mt-2 text-[13px] font-medium text-gray-700">Өнгө: {productColor(viewProduct.id)}</p>}
                 </div>
                 {viewProduct.badge && (
                   <span className="shrink-0 rounded-full bg-blue-500 px-2.5 py-1 text-[10.5px] font-semibold text-white">
