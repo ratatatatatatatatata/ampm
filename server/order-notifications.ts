@@ -1,3 +1,5 @@
+import { isDeliveryItem, orderItemColor, type OrderItem } from '../shared/order-items.ts';
+
 export type EmailPayload = {
   from: string;
   to: string[];
@@ -39,7 +41,7 @@ type Order = {
   delivery_preference?: string | null;
   lat: number | null;
   lng: number | null;
-  items: { name: string; price: number; qty: number }[];
+  items: OrderItem[];
   total: number;
   payment_method: string | null;
   payment_status?: string;
@@ -110,6 +112,8 @@ function validOrder(value: unknown, orderId: string): value is Order {
     typeof value.total !== "number" || !Number.isFinite(value.total) || value.total <= 0 ||
     !Array.isArray(value.items) || value.items.length === 0 || value.items.length > 200) return false;
   return value.items.every((item) => object(item) && boundedText(item.name, 500) &&
+    (item.color == null || boundedText(item.color, 100)) &&
+    (item.kind === undefined || item.kind === 'product' || item.kind === 'delivery') &&
     typeof item.price === "number" && Number.isFinite(item.price) && item.price >= 0 &&
     typeof item.qty === "number" && Number.isSafeInteger(item.qty) && item.qty > 0);
 }
@@ -148,7 +152,7 @@ export function emailPayload(order: Order, sender: string, recipient: string): E
   const text = [
     `AM/PM - ${headline}`, ...rows.map(([label, value]) => `${label}: ${value}`),
     ...(mapUrl ? [`Газрын зураг: ${mapUrl}`] : []), "",
-    ...order.items.map((item) => `${item.name} | ${item.qty} x ${money(item.price)} = ${money(item.qty * item.price)}`),
+    ...order.items.map((item) => `${item.name}${isDeliveryItem(item) ? '' : ` | Өнгө: ${orderItemColor(item)} | ${item.qty} ширхэг`} | ${item.qty} x ${money(item.price)} = ${money(item.qty * item.price)}`),
     `Нийт дүн: ${money(order.total)}`, "", note, "Админ: https://ampm.mn/#admin",
   ].join("\n");
   const html = `<!doctype html><html lang="mn"><body style="margin:0;background:#f3f4f6;font-family:Arial,sans-serif;color:#18221c">
@@ -157,7 +161,7 @@ export function emailPayload(order: Order, sender: string, recipient: string): E
 <table style="width:100%;border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:8px 4px;border-bottom:1px solid #eee;vertical-align:top">${escapeHtml(label)}</td><td style="padding:8px 4px;border-bottom:1px solid #eee;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join("")}</table>
 ${mapUrl ? `<p><a href="${escapeHtml(mapUrl)}">Хүргэлтийн байршлыг харах</a></p>` : ""}
 <h2 style="font-size:18px;margin-top:24px">Захиалсан бүтээгдэхүүн</h2><table style="width:100%;border-collapse:collapse;text-align:left"><thead><tr><th style="padding:8px 4px">Бүтээгдэхүүн</th><th style="padding:8px 4px">Тоо</th><th style="padding:8px 4px">Нэгж үнэ</th><th style="padding:8px 4px">Дүн</th></tr></thead><tbody>
-${order.items.map((item) => `<tr><td style="padding:8px 4px;border-top:1px solid #eee;overflow-wrap:anywhere">${escapeHtml(item.name)}</td><td style="padding:8px 4px;border-top:1px solid #eee">${item.qty}</td><td style="padding:8px 4px;border-top:1px solid #eee">${money(item.price)}</td><td style="padding:8px 4px;border-top:1px solid #eee">${money(item.price * item.qty)}</td></tr>`).join("")}</tbody></table>
+${order.items.map((item) => `<tr><td style="padding:8px 4px;border-top:1px solid #eee;overflow-wrap:anywhere">${escapeHtml(item.name)}${isDeliveryItem(item) ? '' : `<br><span style="font-size:13px;color:#555">Өнгө: ${escapeHtml(orderItemColor(item))}</span>`}</td><td style="padding:8px 4px;border-top:1px solid #eee">${item.qty}${isDeliveryItem(item) ? '' : ' ширхэг'}</td><td style="padding:8px 4px;border-top:1px solid #eee">${money(item.price)}</td><td style="padding:8px 4px;border-top:1px solid #eee">${money(item.price * item.qty)}</td></tr>`).join("")}</tbody></table>
 <p style="text-align:right;font-size:20px;font-weight:bold">Нийт дүн: ${money(order.total)}</p><p style="font-size:13px;color:#555">${note}</p><p><a href="https://ampm.mn/#admin" style="color:#137b45">Админ хэсэг</a></p>
 </div></div></body></html>`;
   return { from: sender, to: [recipient], subject: `AM/PM ${paid ? "QPay төлбөр баталгаажлаа" : "шинэ захиалга"} #${order.id.slice(0, 8)}`, html, text };

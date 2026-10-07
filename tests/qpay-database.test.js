@@ -29,6 +29,22 @@ async function db(t) {
   return db;
 }
 const confirm = `select public.ampm_confirm_qpay_payment('${id}','invoice-1',12000,array['payment-1']) as confirmed`;
+test('transfer and paid QPay queues keep complete per-colour snapshots', async t => {
+  const d = await db(t);
+  const items = [
+    { name: 'AM/PM Silver', product_id: 'silver-test', color: 'Мөнгөлөг', kind: 'product', qty: 2, price: 3000 },
+    { name: 'AM/PM Rose Gold', product_id: 'rose-test', color: 'Ягаан алт', kind: 'product', qty: 3, price: 2000 },
+  ];
+  await d.query('update public.orders set items=$1 where id=$2', [JSON.stringify(items), id]);
+  await d.exec('set role service_role');
+  await d.query(confirm);
+  await d.exec('reset role');
+  assert.deepEqual((await d.query('select order_snapshot from public.ampm_order_notifications where order_id=$1', [id])).rows[0].order_snapshot.items, items);
+  const transferId = '44444444-4444-4444-8444-444444444444';
+  await d.query(`insert into public.orders(id,items,total,contact,address,payment_method)
+    values ($1,$2,12000,'synthetic@example.com','Synthetic','transfer')`, [transferId, JSON.stringify(items)]);
+  assert.deepEqual((await d.query('select order_snapshot from public.ampm_order_notifications where order_id=$1', [transferId])).rows[0].order_snapshot.items, items);
+});
 test('payment and staff notifications are atomic and idempotent; unpaid QPay orders do not queue emails', async t => {
   const d = await db(t);
   assert.equal((await d.query('select * from public.ampm_order_notifications')).rows.length,0);

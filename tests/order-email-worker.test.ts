@@ -72,6 +72,35 @@ function setup() {
   };
 }
 
+test('colour snapshots reach both recipients without merging variants or duplicating mail', async () => {
+  const context = setup();
+  context.env.AMPM_NOTIFICATION_TO = 'first@example.com,second@example.com';
+  context.queue.order_snapshot = { ...fixture, items: [
+    { name: 'AM/PM Silver', color: 'Мөнгөлөг', product_id: 'silver-test', kind: 'product', price: 2000, qty: 2 },
+    { name: 'AM/PM Rose Gold', color: 'Ягаан алт', product_id: 'rose-test', kind: 'product', price: 1000, qty: 3 },
+  ] };
+  await context.run();
+  await context.run();
+  assert.equal(context.requests.length, 2);
+  assert.deepEqual(context.requests.map(r => r.payload.to[0]).sort(), ['first@example.com', 'second@example.com']);
+  for (const { payload } of context.requests) {
+    assert.match(payload.text, /Өнгө: Мөнгөлөг \| 2 ширхэг/);
+    assert.match(payload.text, /Өнгө: Ягаан алт \| 3 ширхэг/);
+    assert.match(payload.html, /Өнгө: Мөнгөлөг/);
+    assert.match(payload.html, /Өнгө: Ягаан алт/);
+  }
+});
+
+test('malformed optional colour metadata fails validation without a provider request', async () => {
+  for (const color of [12, {}, '', 'x'.repeat(101)]) {
+    const context = setup();
+    context.queue.order_snapshot = { ...fixture, items: [{ ...fixture.items[0], color }] };
+    await context.run();
+    assert.equal(context.requests.length, 0);
+    assert.equal(context.queue.status, 'failed');
+  }
+});
+
 test('rejects unauthenticated requests and non-cron methods before accessing the queue', async () => {
   const context = setup();
   for (const method of ['POST', 'OPTIONS']) {
@@ -145,7 +174,8 @@ test('delivery request is escaped, delivered separately to both configured recip
   context.queue.order_snapshot = { ...fixture, delivery_preference: '10-р сарын 2, 14:00–18:00 <script>alert(1)</script>' };
   assert.equal((await context.run()).status, 200);
   assert.equal(context.requests.length, 2);
-  assert.deepEqual(context.requests.map(({ payload }) => payload.to), [['first@example.com'], ['second@example.com']]);
+  // Recipient sends are concurrent; completion order is deliberately not guaranteed.
+  assert.deepEqual(context.requests.map(({ payload }) => payload.to).sort(), [['first@example.com'], ['second@example.com']]);
   for (const { payload } of context.requests) {
     assert.ok(payload.text.includes('10-р сарын 2, 14:00–18:00'));
     assert.ok(payload.html.includes('&lt;script&gt;'));
