@@ -31,6 +31,8 @@ import {
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { SalesReport } from './components/SalesReport'
+import { OrderItems } from './components/OrderItems'
+import { catalogColor, snapshotOrderItems, type OrderItem } from '../shared/order-items'
 import { PENDING_QPAY_KEY, parsePendingQpay, checkoutStepForOpen, viewAfterPayment, type CheckoutStep } from './lib/checkout'
 
 /** AM/PM — гэр бүлийн дүрст тэмдэг (хэрэглэгчийн өгсөн жинхэнэ лого зураг) */
@@ -102,8 +104,6 @@ type Product = {
 }
 
 type CartItem = { id: string; qty: number }
-
-type OrderItem = { name: string; price: number; qty: number }
 
 type Order = {
   id: string
@@ -818,6 +818,7 @@ function ShopCard({ p, onView, onAdd }: { p: Product; onView: () => void; onAdd:
         )}
       </div>
       <p className="line-clamp-2 text-[12.5px] leading-snug text-gray-700">{p.name}</p>
+      {catalogColor(p.name) && <p className="mt-1 text-[12px] font-medium text-gray-600">Өнгө: {catalogColor(p.name)}</p>}
       <div className="mt-auto flex flex-wrap items-end justify-between gap-1.5 pt-1.5">
         <p className="text-[14px] font-bold text-gray-900">{fmt(p.price)}</p>
         <button
@@ -825,7 +826,7 @@ function ShopCard({ p, onView, onAdd }: { p: Product; onView: () => void; onAdd:
             e.stopPropagation()
             onAdd()
           }}
-          aria-label="Сагсанд нэмэх"
+          aria-label={`${p.name} — сагсанд нэмэх`}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white transition-colors hover:bg-blue-600"
         >
           <Plus size={15} />
@@ -992,10 +993,7 @@ function CartDrawer({
     const checkoutToken = crypto.randomUUID()
     const order = {
       checkout_token: checkoutToken,
-      items: [
-        ...lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty })),
-        { name: 'Хүргэлтийн төлбөр', price: DELIVERY_FEE, qty: 1 },
-      ],
+      items: snapshotOrderItems(lines, DELIVERY_FEE),
       total: grandTotal,
       contact: contact.trim(),
       address: address.trim(),
@@ -1244,12 +1242,13 @@ function CartDrawer({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13.5px] font-medium text-gray-900 truncate">{l.name}</p>
+                      <p className="text-[13.5px] font-medium text-gray-900 break-words">{l.name}</p>
+                      <p className="mt-0.5 text-[12px] text-gray-600">Өнгө: {catalogColor(l.name) ?? 'Өнгө бүртгэгдээгүй'} · {l.qty} ширхэг</p>
                       <p className="text-[12.5px] text-gray-500">{fmt(l.price)}</p>
                       <div className="mt-1.5 flex items-center gap-2.5">
                         <button
                           onClick={() => setQty(l.id, l.qty - 1)}
-                          aria-label="Хасах"
+                          aria-label={`${l.name} — хасах`}
                           className="w-6.5 h-6.5 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:border-blue-400 hover:text-blue-500"
                         >
                           <Minus size={12} />
@@ -1257,7 +1256,7 @@ function CartDrawer({
                         <span className="text-[13px] font-semibold text-gray-900 w-5 text-center">{l.qty}</span>
                         <button
                           onClick={() => setQty(l.id, l.qty + 1)}
-                          aria-label="Нэмэх"
+                          aria-label={`${l.name} — нэмэх`}
                           className="w-6.5 h-6.5 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:border-blue-400 hover:text-blue-500"
                         >
                           <Plus size={12} />
@@ -1370,9 +1369,10 @@ function CartDrawer({
               <div className="bg-white rounded-2xl p-4">
                 <p className="text-[12px] font-semibold text-gray-700 mb-2">Захиалга</p>
                 {lines.map((l) => (
-                  <div key={l.id} className="flex justify-between text-[12.5px] text-gray-600 py-0.5">
-                    <span>
-                      {l.name} × {l.qty}
+                  <div key={l.id} className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-[12.5px] text-gray-600 py-1.5">
+                    <span className="min-w-0 flex-1 break-words">
+                      {l.name}
+                      <span className="block font-medium">{catalogColor(l.name) ?? 'Өнгө бүртгэгдээгүй'} · {l.qty} ширхэг</span>
                     </span>
                     <span>{fmt(l.price * l.qty)}</span>
                   </div>
@@ -2556,7 +2556,7 @@ function AdminPanel({
               <ul className="space-y-3">
                 {orders.map((o) => (
                   <li key={o.id} className="bg-white rounded-2xl p-4">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
                       <div className="min-w-0 flex-1 break-words">
                         <p className="text-[13.5px] font-semibold text-gray-900 flex flex-wrap items-center gap-2">
                           {/^[0-9+\-\s]+$/.test(o.contact) ? (
@@ -2592,9 +2592,7 @@ function AdminPanel({
                         <p className="mt-1 text-[12px] text-gray-600 break-words">
                           Хүргүүлэх хүсэлт: {o.deliveryPreference || 'Утсаар тохиролцоно'}
                         </p>
-                        <p className="mt-1.5 text-[12px] text-gray-600">
-                          {o.items.map((i) => `${i.name} ×${i.qty}`).join(' · ')}
-                        </p>
+                        <OrderItems items={o.items} />
                         <p className="mt-0.5 text-[11px] text-gray-400">
                           {new Date(o.created_at).toLocaleString('mn-MN')}
                         </p>
@@ -3619,6 +3617,7 @@ function App() {
                 <div>
                   <h3 className="text-[17px] font-semibold text-gray-900">{viewProduct.name}</h3>
                   <p className="mt-1.5 text-[13px] leading-relaxed text-gray-500">{viewProduct.desc}</p>
+                  {catalogColor(viewProduct.name) && <p className="mt-2 text-[13px] font-medium text-gray-700">Өнгө: {catalogColor(viewProduct.name)}</p>}
                 </div>
                 {viewProduct.badge && (
                   <span className="shrink-0 rounded-full bg-blue-500 px-2.5 py-1 text-[10.5px] font-semibold text-white">
