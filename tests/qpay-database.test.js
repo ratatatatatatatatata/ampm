@@ -26,14 +26,17 @@ async function db(t) {
     insert into public.orders(id,items,total,contact,address,payment_method) values ('${id}','[]',12000,'80000000','Test','qpay');
     insert into public.ampm_qpay_invoices(order_id,invoice_id,expected_amount,callback_token,state)
       values ('${id}','invoice-1',12000,gen_random_uuid(),'ready');`);
+  // Existing colourless orders must still be payable after the INSERT-only guard.
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261007094846_ampm_required_order_colors.sql', import.meta.url), 'utf8'));
   return db;
 }
 const confirm = `select public.ampm_confirm_qpay_payment('${id}','invoice-1',12000,array['payment-1']) as confirmed`;
 test('transfer and paid QPay queues keep complete per-colour snapshots', async t => {
   const d = await db(t);
   const items = [
-    { name: 'AM/PM Silver', product_id: 'silver-test', color: 'Мөнгөлөг', kind: 'product', qty: 2, price: 3000 },
-    { name: 'AM/PM Rose Gold', product_id: 'rose-test', color: 'Ягаан алт', kind: 'product', qty: 3, price: 2000 },
+    { name: 'AM/PM Silver', product_id: '75680028-c0e1-4876-ad88-0b81948da106', color: 'Мөнгөлөг', kind: 'product', qty: 2, price: 1500 },
+    { name: 'AM/PM Rose Gold', product_id: '74cca1c1-1d6c-4452-ac84-e3ede6c66e05', color: 'Ягаан алт', kind: 'product', qty: 3, price: 1000 },
+    { name: 'Хүргэлтийн төлбөр', kind: 'delivery', qty: 1, price: 6000 },
   ];
   await d.query('update public.orders set items=$1 where id=$2', [JSON.stringify(items), id]);
   await d.exec('set role service_role');

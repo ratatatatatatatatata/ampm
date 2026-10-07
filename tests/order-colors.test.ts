@@ -1,17 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { catalogColor, isDeliveryItem, orderItemColor, snapshotOrderItems } from '../shared/order-items.ts'
+import { AMPM_VARIANTS, catalogColor, productColor, isDeliveryItem, orderItemColor, snapshotOrderItems } from '../shared/order-items.ts'
 import { emailPayload } from '../server/order-notifications.ts'
 
 const lines = [
-  { id: 'silver-test', name: 'AM/PM Silver', price: 25000, qty: 2 },
-  { id: 'rose-test', name: 'AM/PM Rose Gold', price: 25000, qty: 3 },
+  { id: AMPM_VARIANTS[0].productId, name: 'AM/PM Silver', price: 25000, qty: 2 },
+  { id: AMPM_VARIANTS[1].productId, name: 'AM/PM Rose Gold', price: 25000, qty: 3 },
 ]
 
 test('checkout snapshots each colour and its quantity separately with an audit product ID', () => {
   const items = snapshotOrderItems(lines, 6000)
   assert.deepEqual(items.map(i => [i.product_id, i.color, i.qty]), [
-    ['silver-test', 'Мөнгөлөг', 2], ['rose-test', 'Ягаан алт', 3], [undefined, undefined, 1],
+    [lines[0].id, 'Мөнгөлөг', 2], [lines[1].id, 'Ягаан алт', 3], [undefined, undefined, 1],
   ])
   assert.equal(items.reduce((total, item) => total + item.qty * item.price, 0), 131000)
   assert.equal(isDeliveryItem(items[2]), true)
@@ -27,13 +27,38 @@ test('saved colour survives future catalogue edits and takes precedence over nam
   assert.equal(orderItemColor({ ...items[0], name: 'AM/PM Rose Gold' }), 'Мөнгөлөг')
 })
 
-test('historic generic AM/PM items cannot inherit colours from current product IDs', () => {
+test('historic generic AM/PM without a recorded variant cannot be assigned a guessed colour', () => {
   for (const name of ['AM/PM', 'Unknown', 'AM/PM Silver and Rose Gold']) {
     assert.equal(catalogColor(name), null)
-    assert.equal(orderItemColor({ ...lines[0], name, product_id: 'silver-test' }), 'Өнгө бүртгэгдээгүй')
+    assert.equal(orderItemColor({ ...lines[0], name, product_id: 'unknown' }), 'Өнгийг захиалагчаас лавлана')
   }
   assert.equal(orderItemColor({ ...lines[1] }), 'Ягаан алт')
   assert.equal(orderItemColor({ name: 'Хүргэлтийн төлбөр', qty: 1, price: 6000 }), '—')
+})
+
+test('verified product codes identify both colours even when both names are only AM/PM', () => {
+  const sameNames = lines.map(line => ({ ...line, name: 'AM/PM' }))
+  const items = snapshotOrderItems(sameNames, 6000)
+  assert.deepEqual(items.slice(0, 2).map(i => [i.color_code, i.color, i.qty]), [
+    ['silver', 'Мөнгөлөг', 2], ['rose_gold', 'Ягаан алт', 3],
+  ])
+  for (const [index, line] of sameNames.entries()) {
+    assert.equal(productColor(line.id), AMPM_VARIANTS[index].label)
+    assert.equal(orderItemColor({ ...line, product_id: line.id }), AMPM_VARIANTS[index].label)
+  }
+})
+
+test('checkout refuses missing/unknown product IDs even with a recognised name', () => {
+  for (const id of ['', 'unknown', 'silver-test']) {
+    assert.throws(() => snapshotOrderItems([{ ...lines[0], id }], 6000), /өнгө/)
+  }
+  assert.throws(() => snapshotOrderItems([], 6000), /өнгө, тоог/)
+})
+
+test('checkout refuses invalid or fractional quantities before saving or paying', () => {
+  for (const qty of [0, -1, 1.5, 1001, Infinity, NaN]) {
+    assert.throws(() => snapshotOrderItems([{ ...lines[0], qty }], 6000), /бүхэл тоо/)
+  }
 })
 
 test('both email formats show colour and units, and escape untrusted stored colours', () => {
